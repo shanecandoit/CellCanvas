@@ -1,6 +1,6 @@
-# CellChain
+# CellCanvas
 
-CellChain is a simple, spreadsheet-like desktop application written in Go using Ebiten. It presents a large canvas composed of movable panels; each panel contains a grid of cells you can navigate and edit. It's designed as a lightweight, interactive demo showcasing how to build UI-like layouts and editable grids.
+CellCanvas is a simple, spreadsheet-like desktop application written in Go using Ebiten. It presents a large canvas composed of movable panels; each panel contains a grid of cells you can navigate and edit. It's designed as a lightweight, interactive demo showcasing how to build UI-like layouts and editable grids.
 
 **Status:** Minimal prototype — focused on core navigation and editing on a large canvas.
 

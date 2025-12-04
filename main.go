@@ -203,7 +203,7 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 
 func main() {
 	ebiten.SetWindowSize(windowWidth, windowHeight)
-	ebiten.SetWindowTitle("CellChain — Canvas Panels Demo")
+	ebiten.SetWindowTitle("CellCanvas - Spreadsheet Panels")
 	ebiten.SetWindowResizable(true)
 	g := NewGame()
 	if err := ebiten.RunGame(g); err != nil {
