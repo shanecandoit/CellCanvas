@@ -92,6 +92,10 @@ func (c *Canvas) Update(g *Game) {
 				if row >= 0 && row < p.Rows && col >= 0 && col < p.Cols {
 					g.selRow = row
 					g.selCol = col
+					// notify UI about the click so it can decide double-click
+					if g.ui != nil {
+						g.ui.OnCellClick(g, i, row, col)
+					}
 				}
 				break
 			}

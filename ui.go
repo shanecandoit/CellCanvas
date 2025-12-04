@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"log"
 	"os"
+	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -16,10 +17,21 @@ import (
 
 type UI struct {
 	face font.Face
+	// double-click tracking (moved here from Canvas)
+	lastClickPanel int
+	lastClickRow   int
+	lastClickCol   int
+	lastClickTime  int64 // unix ms
+	dblClickMs     int64
 }
 
 func NewUI() *UI {
 	ui := &UI{}
+	ui.lastClickPanel = -1
+	ui.lastClickRow = -1
+	ui.lastClickCol = -1
+	ui.lastClickTime = 0
+	ui.dblClickMs = 400
 
 	// Try to load local RobotoMono TTF from res/
 	b, err := os.ReadFile("res/Roboto-Regular.ttf")
@@ -141,6 +153,28 @@ func (ui *UI) Update(g *Game) {
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
 		g.editing = false
+	}
+}
+
+// OnCellClick handles click events on a cell and detects double-clicks to begin editing.
+func (ui *UI) OnCellClick(g *Game, panel, row, col int) {
+	now := time.Now().UnixNano() / 1e6
+	if ui.lastClickPanel == panel && ui.lastClickRow == row && ui.lastClickCol == col && now-ui.lastClickTime <= ui.dblClickMs {
+		// double-click: start editing
+		if panel >= 0 && panel < len(g.canvas.panels) {
+			g.editing = true
+			g.editBuffer = g.canvas.panels[panel].Cells[row][col]
+			g.editCursor = len([]rune(g.editBuffer))
+			g.blinkCounter = 0
+			g.caretVisible = true
+		}
+		// reset last click to avoid immediate retrigger
+		ui.lastClickPanel = -1
+	} else {
+		ui.lastClickPanel = panel
+		ui.lastClickRow = row
+		ui.lastClickCol = col
+		ui.lastClickTime = now
 	}
 }
 
