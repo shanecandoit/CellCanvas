@@ -183,7 +183,11 @@ func (c *Canvas) Draw(screen *ebiten.Image, g *Game) {
 				// cell bg (slightly lighter card)
 				ebitenutil.DrawRect(screen, x, y, float64(p.CellW-1), float64(p.CellH-1), color.RGBA{0x18, 0x18, 0x1c, 0xff})
 				// cell text (light)
+				// if this is the active cell being edited, show the live edit buffer
 				txt := p.Cells[r][ccol]
+				if g != nil && g.editing && g.activePanel == pi && r == g.selRow && ccol == g.selCol {
+					txt = g.editBuffer
+				}
 				drawTextAt(screen, g.ui.face, txt, int(x)+6, int(y)+6, color.White)
 			}
 		}
