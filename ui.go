@@ -58,6 +58,25 @@ func NewUI() *UI {
 
 // Update handles editing input, caret blinking, and commit/cancel while editing.
 func (ui *UI) Update(g *Game) {
+	// global shortcuts: Save (Ctrl+S) and Open (Ctrl+O)
+	ctrlPressed := ebiten.IsKeyPressed(ebiten.KeyControlLeft) || ebiten.IsKeyPressed(ebiten.KeyControlRight)
+	if ctrlPressed && inpututil.IsKeyJustPressed(ebiten.KeyS) {
+		// default state file
+		statePath := "state.yml"
+		if err := g.canvas.SaveState(statePath); err != nil {
+			log.Printf("Save failed: %v", err)
+		} else {
+			log.Printf("Saved state to %s", statePath)
+		}
+	}
+	if ctrlPressed && inpututil.IsKeyJustPressed(ebiten.KeyO) {
+		statePath := "state.yml"
+		if err := g.canvas.LoadState(statePath); err != nil {
+			log.Printf("Open failed: %v", err)
+		} else {
+			log.Printf("Loaded state from %s", statePath)
+		}
+	}
 	// start editing when Enter is pressed (only when not already editing)
 	if !g.editing {
 		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
@@ -183,7 +202,8 @@ func (ui *UI) Draw(screen *ebiten.Image, g *Game) {
 	// Use the actual logical screen height so the HUD sits at the bottom
 	// even when the window is resized.
 	screenH := screen.Bounds().Dy()
-	drawTextAt(screen, ui.face, "Right-drag to pan - Left-drag title to move - Drag corner to resize", 8, screenH-28, color.White)
+	drawTextAt(screen, ui.face, "Right-drag to pan - Left-drag title to move - Drag corner to resize", 8, screenH-42, color.White)
+	drawTextAt(screen, ui.face, "Press Ctrl+S to Save - Press Ctrl+O to Open", 8, screenH-28, color.White)
 	drawTextAt(screen, ui.face, "Arrows to move - Enter to edit - Tab switch panel", 8, screenH-14, color.White)
 
 	if g.editing {

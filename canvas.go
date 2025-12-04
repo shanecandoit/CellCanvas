@@ -12,12 +12,13 @@ import (
 )
 
 type Panel struct {
-	X, Y  int
-	Cols  int
-	Rows  int
-	CellW int
-	CellH int
-	Cells [][]string
+	X, Y     int
+	Cols     int
+	Rows     int
+	CellW    int
+	CellH    int
+	Cells    [][]string
+	Filename string
 }
 
 // panelGap is the minimum spacing (in pixels) to keep between panels.
@@ -318,5 +319,5 @@ func NewPanel(x, y, cols, rows int) Panel {
 			cells[r][c] = fmt.Sprintf("R%dC%d", r, c)
 		}
 	}
-	return Panel{X: x, Y: y, Cols: cols, Rows: rows, CellW: defaultCellW, CellH: defaultCellH, Cells: cells}
+	return Panel{X: x, Y: y, Cols: cols, Rows: rows, CellW: defaultCellW, CellH: defaultCellH, Cells: cells, Filename: ""}
 }
