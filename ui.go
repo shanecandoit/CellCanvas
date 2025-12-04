@@ -66,7 +66,7 @@ func (ui *UI) Update(g *Game) {
 		if err := g.canvas.SaveState(statePath); err != nil {
 			log.Printf("Save failed: %v", err)
 		} else {
-			log.Printf("Saved state to %s", statePath)
+			log.Printf("Saved to %s", statePath)
 		}
 	}
 	if ctrlPressed && inpututil.IsKeyJustPressed(ebiten.KeyO) {
@@ -74,7 +74,7 @@ func (ui *UI) Update(g *Game) {
 		if err := g.canvas.LoadState(statePath); err != nil {
 			log.Printf("Open failed: %v", err)
 		} else {
-			log.Printf("Loaded state from %s", statePath)
+			log.Printf("Loaded from %s", statePath)
 		}
 	}
 	// start editing when Enter is pressed (only when not already editing)
