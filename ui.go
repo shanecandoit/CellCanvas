@@ -23,6 +23,8 @@ type UI struct {
 	lastClickCol   int
 	lastClickTime  int64 // unix ms
 	dblClickMs     int64
+	// recent mouse click log (most-recent first)
+	clickLog []string
 }
 
 func NewUI() *UI {
@@ -32,6 +34,8 @@ func NewUI() *UI {
 	ui.lastClickCol = -1
 	ui.lastClickTime = 0
 	ui.dblClickMs = 400
+
+	ui.clickLog = []string{}
 
 	// Try to load local RobotoMono TTF from res/
 	b, err := os.ReadFile("res/Roboto-Regular.ttf")
@@ -58,6 +62,33 @@ func NewUI() *UI {
 
 // Update handles editing input, caret blinking, and commit/cancel while editing.
 func (ui *UI) Update(g *Game) {
+	// Log mouse clicks (left and right) with panel/cell when detectable.
+	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonRight) {
+		btn := "L"
+		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonRight) {
+			btn = "R"
+		}
+		mx, my := ebiten.CursorPosition()
+		// try to detect panel/cell under cursor
+		found := false
+		for i := len(g.canvas.panels) - 1; i >= 0; i-- {
+			p := g.canvas.panels[i]
+			baseX := int(float64(p.X) + g.canvas.camX)
+			baseY := int(float64(p.Y) + g.canvas.camY)
+			w := p.Cols * p.CellW
+			h := p.Rows * p.CellH
+			if mx >= baseX && mx <= baseX+w && my >= baseY && my <= baseY+h {
+				col := (mx - baseX) / p.CellW
+				row := (my - baseY) / p.CellH
+				ui.addClickLog(fmt.Sprintf("%s click @ %d,%d  panel=%d row=%d col=%d", btn, mx, my, i, row, col))
+				found = true
+				break
+			}
+		}
+		if !found {
+			ui.addClickLog(fmt.Sprintf("%s click @ %d,%d  (no panel)", btn, mx, my))
+		}
+	}
 	// global shortcuts: Save (Ctrl+S) and Open (Ctrl+O)
 	ctrlPressed := ebiten.IsKeyPressed(ebiten.KeyControlLeft) || ebiten.IsKeyPressed(ebiten.KeyControlRight)
 	if ctrlPressed && inpututil.IsKeyJustPressed(ebiten.KeyS) {
@@ -197,6 +228,17 @@ func (ui *UI) OnCellClick(g *Game, panel, row, col int) {
 	}
 }
 
+// addClickLog prepends a timestamped entry to the click log and keeps it bounded.
+func (ui *UI) addClickLog(s string) {
+	ts := time.Now().Format("15:04:05.000")
+	entry := fmt.Sprintf("%s  %s", ts, s)
+	// prepend
+	ui.clickLog = append([]string{entry}, ui.clickLog...)
+	if len(ui.clickLog) > 10 {
+		ui.clickLog = ui.clickLog[:10]
+	}
+}
+
 // Draw renders HUD and editing text overlay
 func (ui *UI) Draw(screen *ebiten.Image, g *Game) {
 	// Use the actual logical screen height so the HUD sits at the bottom
@@ -244,6 +286,53 @@ func (ui *UI) Draw(screen *ebiten.Image, g *Game) {
 			sx := float64(p.X) + g.canvas.camX + float64(g.selCol*p.CellW)
 			sy := float64(p.Y) + g.canvas.camY + float64(g.selRow*p.CellH)
 			drawTextAt(screen, ui.face, g.editBuffer, int(sx)+6, int(sy)+6, color.White)
+		}
+	}
+
+	// Draw recent mouse click log at top-right
+	if len(ui.clickLog) > 0 {
+		sw := screen.Bounds().Dx()
+		x := sw - 360
+		y := 8
+		// background box
+		boxW := 352
+		boxH := len(ui.clickLog)*16 + 8
+		ebitenutil.DrawRect(screen, float64(x-8), float64(y-6), float64(boxW+16), float64(boxH+12), color.RGBA{0x0c, 0x0c, 0x0e, 0xee})
+		for i, line := range ui.clickLog {
+			drawTextAt(screen, ui.face, line, x, y+i*14, color.RGBA{0xdd, 0xdd, 0xdd, 0xff})
+		}
+	}
+
+	// draw right-click context menu if visible
+	if g.contextVisible {
+		itemH := 28
+		w := 240
+		x := g.contextX
+		y := g.contextY
+		// background with small padding
+		bgX := float64(x - 4)
+		bgY := float64(y - 4)
+		bgW := float64(w + 8)
+		bgH := float64(itemH*2 + 8)
+		ebitenutil.DrawRect(screen, bgX, bgY, bgW, bgH, color.RGBA{0x10, 0x10, 0x12, 0xff})
+		// border
+		ebitenutil.DrawRect(screen, bgX, bgY, bgW, 2, color.RGBA{0x44, 0x44, 0x50, 0xff})
+		ebitenutil.DrawRect(screen, bgX, bgY+bgH-2, bgW, 2, color.RGBA{0x44, 0x44, 0x50, 0xff})
+		ebitenutil.DrawRect(screen, bgX, bgY, 2, bgH, color.RGBA{0x44, 0x44, 0x50, 0xff})
+		ebitenutil.DrawRect(screen, bgX+bgW-2, bgY, 2, bgH, color.RGBA{0x44, 0x44, 0x50, 0xff})
+
+		items := []string{"New Blank Panel", "Load Panel from File ..."}
+		for i, it := range items {
+			iy := y + i*itemH
+			// highlight on hover
+			if g.contextSelected == i {
+				ebitenutil.DrawRect(screen, float64(x), float64(iy), float64(w), float64(itemH), color.RGBA{0x33, 0x55, 0xff, 0xff})
+				// draw text in white
+				drawTextAt(screen, ui.face, it, x+8, iy+6, color.White)
+			} else {
+				// normal background (transparent) and text
+				drawTextAt(screen, ui.face, it, x+8, iy+6, color.White)
+			}
 		}
 	}
 }

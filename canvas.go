@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"image/color"
+	"path/filepath"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
@@ -320,4 +321,27 @@ func NewPanel(x, y, cols, rows int) Panel {
 		}
 	}
 	return Panel{X: x, Y: y, Cols: cols, Rows: rows, CellW: defaultCellW, CellH: defaultCellH, Cells: cells, Filename: ""}
+}
+
+// AddPanelAt appends a new blank panel positioned at given world coordinates
+func (c *Canvas) AddPanelAt(x, y int) {
+	p := NewPanel(x, y, 8, 8)
+	p.X = x
+	p.Y = y
+	c.panels = append(c.panels, p)
+}
+
+// AddPanelFromCSV loads a CSV file into a new panel positioned at x,y.
+// Returns an error if loading the CSV fails.
+func (c *Canvas) AddPanelFromCSV(path string, x, y int) error {
+	p := NewPanel(x, y, 1, 1)
+	if err := loadPanelCSV(path, &p); err != nil {
+		return err
+	}
+	// store filename as base name
+	p.Filename = filepath.Base(path)
+	p.X = x
+	p.Y = y
+	c.panels = append(c.panels, p)
+	return nil
 }
