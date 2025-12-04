@@ -1,12 +1,14 @@
 package main
 
 import (
+	"fmt"
 	"image/color"
 	"log"
 	"os"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/basicfont"
 	"golang.org/x/image/font/opentype"
@@ -42,6 +44,106 @@ func NewUI() *UI {
 	return ui
 }
 
+// Update handles editing input, caret blinking, and commit/cancel while editing.
+func (ui *UI) Update(g *Game) {
+	// start editing when Enter is pressed (only when not already editing)
+	if !g.editing {
+		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
+			if g.activePanel >= 0 && g.activePanel < len(g.canvas.panels) {
+				g.editing = true
+				g.editBuffer = g.canvas.panels[g.activePanel].Cells[g.selRow][g.selCol]
+				g.editCursor = len([]rune(g.editBuffer))
+				g.blinkCounter = 0
+				g.caretVisible = true
+			}
+		}
+		return
+	}
+
+	// blink caret timer
+	g.blinkCounter++
+	if g.blinkCounter%30 == 0 {
+		g.caretVisible = !g.caretVisible
+	}
+
+	// handle typed characters, inserting at cursor
+	for _, r := range ebiten.InputChars() {
+		if r == '\b' {
+			if g.editCursor > 0 {
+				rs := []rune(g.editBuffer)
+				rs = append(rs[:g.editCursor-1], rs[g.editCursor:]...)
+				g.editBuffer = string(rs)
+				g.editCursor--
+				g.blinkCounter = 0
+				g.caretVisible = true
+			}
+		} else {
+			rs := []rune(g.editBuffer)
+			rs = append(rs[:g.editCursor], append([]rune{r}, rs[g.editCursor:]...)...)
+			g.editBuffer = string(rs)
+			g.editCursor++
+			g.blinkCounter = 0
+			g.caretVisible = true
+		}
+	}
+
+	// navigation and editing keys
+	if inpututil.IsKeyJustPressed(ebiten.KeyArrowLeft) {
+		if g.editCursor > 0 {
+			g.editCursor--
+			g.blinkCounter = 0
+			g.caretVisible = true
+		}
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyArrowRight) {
+		if g.editCursor < len([]rune(g.editBuffer)) {
+			g.editCursor++
+			g.blinkCounter = 0
+			g.caretVisible = true
+		}
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) {
+		if g.editCursor > 0 {
+			rs := []rune(g.editBuffer)
+			rs = append(rs[:g.editCursor-1], rs[g.editCursor:]...)
+			g.editBuffer = string(rs)
+			g.editCursor--
+			g.blinkCounter = 0
+			g.caretVisible = true
+		}
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyDelete) {
+		rs := []rune(g.editBuffer)
+		if g.editCursor < len(rs) {
+			rs = append(rs[:g.editCursor], rs[g.editCursor+1:]...)
+			g.editBuffer = string(rs)
+			g.blinkCounter = 0
+			g.caretVisible = true
+		}
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyHome) {
+		g.editCursor = 0
+		g.blinkCounter = 0
+		g.caretVisible = true
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyEnd) {
+		g.editCursor = len([]rune(g.editBuffer))
+		g.blinkCounter = 0
+		g.caretVisible = true
+	}
+
+	// commit/cancel
+	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
+		if g.activePanel >= 0 && g.activePanel < len(g.canvas.panels) {
+			g.canvas.panels[g.activePanel].Cells[g.selRow][g.selCol] = g.editBuffer
+		}
+		g.editing = false
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+		g.editing = false
+	}
+}
+
 // Draw renders HUD and editing text overlay
 func (ui *UI) Draw(screen *ebiten.Image, g *Game) {
 	// Use the actual logical screen height so the HUD sits at the bottom
@@ -55,12 +157,28 @@ func (ui *UI) Draw(screen *ebiten.Image, g *Game) {
 		sw := screen.Bounds().Dx()
 		ebitenutil.DrawRect(screen, 0, 0, float64(sw), 34, color.RGBA{0x11, 0x11, 0x16, 0xff})
 		padding := 8
-		// draw the edit buffer in the bar
-		drawTextAt(screen, ui.face, g.editBuffer, padding, 6, color.White)
 
-		// draw caret if visible
+		// build a label like: "Edit Panel0 Cell-A1 : "
+		colLabel := func(n int) string {
+			if n < 0 {
+				return "?"
+			}
+			s := ""
+			for n >= 0 {
+				rem := n % 26
+				s = string('A'+rem) + s
+				n = n/26 - 1
+			}
+			return s
+		}
+		label := fmt.Sprintf("Edit Panel%d Cell-%s%d : ", g.activePanel, colLabel(g.selCol), g.selRow+1)
+
+		// render the full bracketed string
+		full := label + "[" + g.editBuffer + "]"
+		drawTextAt(screen, ui.face, full, padding, 6, color.White)
+
+		// draw caret if visible (measured relative to the full label)
 		if g.caretVisible {
-			// compute width of runes before cursor to place caret
 			rs := []rune(g.editBuffer)
 			if g.editCursor < 0 {
 				g.editCursor = 0
@@ -68,10 +186,9 @@ func (ui *UI) Draw(screen *ebiten.Image, g *Game) {
 			if g.editCursor > len(rs) {
 				g.editCursor = len(rs)
 			}
-			pre := string(rs[:g.editCursor])
-			bounds, _ := font.BoundString(ui.face, pre)
-			caretX := int((bounds.Max.X - bounds.Min.X) >> 6)
-			// caret height roughly ascent+descent
+			pre := label + "[" + string(rs[:g.editCursor])
+			b, _ := font.BoundString(ui.face, pre)
+			caretX := int((b.Max.X - b.Min.X) >> 6)
 			ascent := ui.face.Metrics().Ascent.Round()
 			descent := ui.face.Metrics().Descent.Round()
 			caretH := ascent + descent
@@ -79,7 +196,7 @@ func (ui *UI) Draw(screen *ebiten.Image, g *Game) {
 			ebitenutil.DrawRect(screen, float64(padding+caretX), float64(caretY), 2, float64(caretH), color.White)
 		}
 
-		// position editing text over the selected cell
+		// position editing text over the selected cell (visual feedback)
 		if g.activePanel >= 0 && g.activePanel < len(g.canvas.panels) {
 			p := g.canvas.panels[g.activePanel]
 			sx := float64(p.X) + g.canvas.camX + float64(g.selCol*p.CellW)
