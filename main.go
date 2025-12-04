@@ -4,10 +4,15 @@ import (
 	"fmt"
 	"image/color"
 	"log"
+	"os"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"github.com/hajimehoshi/ebiten/v2/text"
+	"golang.org/x/image/font"
+	"golang.org/x/image/font/basicfont"
+	"golang.org/x/image/font/opentype"
 )
 
 const (
@@ -60,6 +65,7 @@ type Canvas struct {
 
 // UI handles HUD and overlay drawing
 type UI struct {
+	face font.Face
 }
 
 func NewCanvas() *Canvas {
@@ -70,7 +76,41 @@ func NewCanvas() *Canvas {
 }
 
 func NewUI() *UI {
-	return &UI{}
+	ui := &UI{}
+
+	// Try to load local RobotoMono TTF from res/
+	b, err := os.ReadFile("res/Roboto-Regular.ttf")
+	if err != nil {
+		log.Printf("could not read font file: %v; falling back to basic font", err)
+		ui.face = basicfont.Face7x13
+		return ui
+	}
+	tt, err := opentype.Parse(b)
+	if err != nil {
+		log.Printf("could not parse ttf: %v; falling back to basic font", err)
+		ui.face = basicfont.Face7x13
+		return ui
+	}
+	face, err := opentype.NewFace(tt, &opentype.FaceOptions{Size: 14, DPI: 72, Hinting: font.HintingFull})
+	if err != nil {
+		log.Printf("could not create font face: %v; falling back to basic font", err)
+		ui.face = basicfont.Face7x13
+		return ui
+	}
+	ui.face = face
+	return ui
+}
+
+// drawTextAt draws text using the provided face. If face is nil, falls back to ebitenutil.DebugPrintAt.
+func drawTextAt(screen *ebiten.Image, face font.Face, s string, x, y int, col color.Color) {
+	if face == nil {
+		ebitenutil.DebugPrintAt(screen, s, x, y)
+		return
+	}
+	// text.Draw expects y to be baseline; DebugPrintAt uses top-left.
+	// Adjust by ascent so text appears where DebugPrintAt placed it.
+	ascent := face.Metrics().Ascent.Round()
+	text.Draw(screen, s, face, x, y+ascent, col)
 }
 
 // Update handles panel interactions: picking, moving, resizing, selection
@@ -191,7 +231,7 @@ func (c *Canvas) Draw(screen *ebiten.Image, g *Game) {
 		ebitenutil.DrawRect(screen, baseX-4, baseY-20, float64(p.Cols*p.CellW)+8, float64(p.Rows*p.CellH)+28, color.RGBA{0x22, 0x22, 0x2a, 0xff})
 
 		// panel title
-		ebitenutil.DebugPrintAt(screen, fmt.Sprintf("Panel %d", pi), int(baseX)+6, int(baseY-18))
+		drawTextAt(screen, g.ui.face, fmt.Sprintf("Panel %d", pi), int(baseX)+6, int(baseY-18), color.White)
 
 		// draw border
 		ebitenutil.DrawRect(screen, baseX-4, baseY-20, 2, float64(p.Rows*p.CellH)+28, color.RGBA{0x44, 0x44, 0x50, 0xff})
@@ -207,7 +247,7 @@ func (c *Canvas) Draw(screen *ebiten.Image, g *Game) {
 				ebitenutil.DrawRect(screen, x, y, float64(p.CellW-1), float64(p.CellH-1), color.RGBA{0x18, 0x18, 0x1c, 0xff})
 				// cell text (light)
 				txt := p.Cells[r][ccol]
-				ebitenutil.DebugPrintAt(screen, txt, int(x)+6, int(y)+6)
+				drawTextAt(screen, g.ui.face, txt, int(x)+6, int(y)+6, color.White)
 			}
 		}
 
@@ -231,7 +271,7 @@ func (ui *UI) Draw(screen *ebiten.Image, g *Game) {
 	// Use the actual logical screen height so the HUD sits at the bottom
 	// even when the window is resized.
 	screenH := screen.Bounds().Dy()
-	ebitenutil.DebugPrintAt(screen, "Right-drag to pan • Left-drag title to move • Drag corner to resize • Arrows to move • Enter to edit • Tab switch panel", 8, screenH-28)
+	drawTextAt(screen, ui.face, "Right-drag to pan • Left-drag title to move • Drag corner to resize • Arrows to move • Enter to edit • Tab switch panel", 8, screenH-28, color.White)
 
 	if g.editing {
 		// position editing text over the selected cell
@@ -239,7 +279,7 @@ func (ui *UI) Draw(screen *ebiten.Image, g *Game) {
 			p := g.canvas.panels[g.activePanel]
 			sx := float64(p.X) + g.canvas.camX + float64(g.selCol*p.CellW)
 			sy := float64(p.Y) + g.canvas.camY + float64(g.selRow*p.CellH)
-			ebitenutil.DebugPrintAt(screen, g.editBuffer, int(sx)+6, int(sy)+6)
+			drawTextAt(screen, ui.face, g.editBuffer, int(sx)+6, int(sy)+6, color.White)
 		}
 	}
 }
