@@ -228,7 +228,10 @@ func (c *Canvas) Draw(screen *ebiten.Image, g *Game) {
 
 // Draw renders HUD and editing text overlay
 func (ui *UI) Draw(screen *ebiten.Image, g *Game) {
-	ebitenutil.DebugPrintAt(screen, "Right-drag to pan • Left-drag title to move • Drag corner to resize • Arrows to move • Enter to edit • Tab switch panel", 8, windowHeight-28)
+	// Use the actual logical screen height so the HUD sits at the bottom
+	// even when the window is resized.
+	screenH := screen.Bounds().Dy()
+	ebitenutil.DebugPrintAt(screen, "Right-drag to pan • Left-drag title to move • Drag corner to resize • Arrows to move • Enter to edit • Tab switch panel", 8, screenH-28)
 
 	if g.editing {
 		// position editing text over the selected cell
@@ -354,7 +357,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
-	return windowWidth, windowHeight
+	// Return the outside dimensions so the logical screen matches window size.
+	// This prevents black bars when the window is resized.
+	return outsideWidth, outsideHeight
 }
 
 func main() {
