@@ -193,19 +193,7 @@ func (ui *UI) Draw(screen *ebiten.Image, g *Game) {
 		padding := 8
 
 		// build a label like: "Edit Panel0 Cell-A1 : "
-		colLabel := func(n int) string {
-			if n < 0 {
-				return "?"
-			}
-			s := ""
-			for n >= 0 {
-				rem := n % 26
-				s = string('A'+rem) + s
-				n = n/26 - 1
-			}
-			return s
-		}
-		label := fmt.Sprintf("Edit Panel%d Cell-%s%d : ", g.activePanel, colLabel(g.selCol), g.selRow+1)
+		label := fmt.Sprintf("Edit Panel%d Cell-%s%d : ", g.activePanel, ColToLetters(g.selCol), g.selRow+1)
 
 		// render the full bracketed string
 		full := label + "[" + g.editBuffer + "]"
