@@ -20,6 +20,15 @@ type Panel struct {
 	Cells [][]string
 }
 
+// panelGap is the minimum spacing (in pixels) to keep between panels.
+// The codebase already uses small offsets like 4 when drawing panels, so
+// 4 is a sensible default. Change to 8 or 10 if you prefer a larger gap.
+const panelGap = 4
+
+// axisHysteresis prevents immediate axis switching; the other axis must have
+// a violation larger by this many pixels before we switch to it.
+const axisHysteresis = 2
+
 // Canvas contains panels and camera + interaction state for moving/resizing
 type Canvas struct {
 	panels     []Panel
@@ -160,6 +169,96 @@ func (c *Canvas) Update(g *Game) {
 		c.movingPanel = -1
 		c.resizingPanel = -1
 	}
+
+	// resolve a single overlapping panel pair by moving one panel one pixel
+	// (skip panels currently being moved/resized by the user)
+	c.resolveOneOverlap()
+}
+
+// resolveOneOverlap finds the first overlapping panel pair (not being
+// actively moved/resized) and moves one panel by a single pixel away from
+// the other along the axis of least overlap. This helps separate multiple
+// overlapping panels gradually (one pair, one pixel per update).
+func (c *Canvas) resolveOneOverlap() {
+	for i := 0; i < len(c.panels); i++ {
+		// skip if this panel is being interacted with
+		if i == c.movingPanel || i == c.resizingPanel {
+			continue
+		}
+		a := c.panels[i]
+		aLeft := a.X - 4
+		aW := a.Cols*a.CellW + 8
+
+		for j := i + 1; j < len(c.panels); j++ {
+			// skip if this panel is being interacted with
+			if j == c.movingPanel || j == c.resizingPanel {
+				continue
+			}
+			b := c.panels[j]
+			bLeft := b.X - 4
+			bW := b.Cols*b.CellW + 8
+
+			// Only perform horizontal separation: compute X overlap/gap and
+			// move panel j by 1 pixel along X away from panel i when the
+			// horizontal separation is less than `panelGap` (or panels overlap).
+			aRight := aLeft + aW
+			bRight := bLeft + bW
+
+			// compute overlapX (positive if overlapping)
+			overlapX := min(aRight, bRight) - max(aLeft, bLeft)
+
+			// compute gap when not overlapping
+			var gapX int
+			if aRight < bLeft {
+				gapX = bLeft - aRight
+			} else if bRight < aLeft {
+				gapX = aLeft - bRight
+			} else {
+				gapX = -overlapX
+			}
+
+			// determine horizontal violation (how much we need to move to reach panelGap)
+			var violX int
+			if overlapX > 0 {
+				violX = overlapX + panelGap
+			} else if gapX < panelGap {
+				violX = panelGap - gapX
+			}
+
+			if violX <= 0 {
+				// no horizontal work needed
+				continue
+			}
+
+			// centers to choose direction to move b away from a
+			aCx := aLeft + aW/2
+			bCx := bLeft + bW/2
+
+			// move along X by 1 pixel away from A
+			if aCx < bCx {
+				c.panels[j].X += 1
+			} else {
+				c.panels[j].X -= 1
+			}
+
+			// Only move a single pair by a single pixel per Update
+			return
+		}
+	}
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 // Draw renders the panels; selection overlay is drawn here but editing text is handled by UI
