@@ -29,8 +29,11 @@ type Game struct {
 	selRow, selCol int
 
 	// editing
-	editing    bool
-	editBuffer string
+	editing      bool
+	editBuffer   string
+	editCursor   int
+	blinkCounter int
+	caretVisible bool
 }
 
 func NewGame() *Game {
@@ -90,18 +93,85 @@ func (g *Game) Update() error {
 		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
 			g.editing = true
 			g.editBuffer = g.canvas.panels[g.activePanel].Cells[g.selRow][g.selCol]
+			// place cursor at end and reset caret blink
+			g.editCursor = len([]rune(g.editBuffer))
+			g.blinkCounter = 0
+			g.caretVisible = true
 		}
 	} else {
-		// collecting input characters while editing
+		// blink caret timer (toggle every ~30 frames)
+		g.blinkCounter++
+		if g.blinkCounter%30 == 0 {
+			g.caretVisible = !g.caretVisible
+		}
+
+		// handle typed characters, inserting at cursor
 		for _, r := range ebiten.InputChars() {
 			if r == '\b' {
-				if len(g.editBuffer) > 0 {
-					g.editBuffer = g.editBuffer[:len(g.editBuffer)-1]
+				if g.editCursor > 0 {
+					rs := []rune(g.editBuffer)
+					rs = append(rs[:g.editCursor-1], rs[g.editCursor:]...)
+					g.editBuffer = string(rs)
+					g.editCursor--
+					g.blinkCounter = 0
+					g.caretVisible = true
 				}
 			} else {
-				g.editBuffer += string(r)
+				rs := []rune(g.editBuffer)
+				rs = append(rs[:g.editCursor], append([]rune{r}, rs[g.editCursor:]...)...)
+				g.editBuffer = string(rs)
+				g.editCursor++
+				g.blinkCounter = 0
+				g.caretVisible = true
 			}
 		}
+
+		// navigation and editing keys
+		if inpututil.IsKeyJustPressed(ebiten.KeyArrowLeft) {
+			if g.editCursor > 0 {
+				g.editCursor--
+				g.blinkCounter = 0
+				g.caretVisible = true
+			}
+		}
+		if inpututil.IsKeyJustPressed(ebiten.KeyArrowRight) {
+			if g.editCursor < len([]rune(g.editBuffer)) {
+				g.editCursor++
+				g.blinkCounter = 0
+				g.caretVisible = true
+			}
+		}
+		if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) {
+			if g.editCursor > 0 {
+				rs := []rune(g.editBuffer)
+				rs = append(rs[:g.editCursor-1], rs[g.editCursor:]...)
+				g.editBuffer = string(rs)
+				g.editCursor--
+				g.blinkCounter = 0
+				g.caretVisible = true
+			}
+		}
+		if inpututil.IsKeyJustPressed(ebiten.KeyDelete) {
+			rs := []rune(g.editBuffer)
+			if g.editCursor < len(rs) {
+				rs = append(rs[:g.editCursor], rs[g.editCursor+1:]...)
+				g.editBuffer = string(rs)
+				g.blinkCounter = 0
+				g.caretVisible = true
+			}
+		}
+		if inpututil.IsKeyJustPressed(ebiten.KeyHome) {
+			g.editCursor = 0
+			g.blinkCounter = 0
+			g.caretVisible = true
+		}
+		if inpututil.IsKeyJustPressed(ebiten.KeyEnd) {
+			g.editCursor = len([]rune(g.editBuffer))
+			g.blinkCounter = 0
+			g.caretVisible = true
+		}
+
+		// commit/cancel
 		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
 			g.canvas.panels[g.activePanel].Cells[g.selRow][g.selCol] = g.editBuffer
 			g.editing = false
