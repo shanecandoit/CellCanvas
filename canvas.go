@@ -232,6 +232,19 @@ func (c *Canvas) resolveOneOverlap() {
 				continue
 			}
 
+			// Only separate panels that actually overlap vertically as well.
+			// Compute vertical bounds used elsewhere when drawing (title/header included)
+			aTop := a.Y - 20
+			aH := a.Rows*a.CellH + 28
+			bTop := b.Y - 20
+			bH := b.Rows*b.CellH + 28
+			overlapY := min(aTop+aH, bTop+bH) - max(aTop, bTop)
+			if overlapY <= 0 {
+				// panels are vertically separated (one is above/below the other)
+				// do not perform horizontal separation in this case
+				continue
+			}
+
 			// centers to choose direction to move b away from a
 			aCx := aLeft + aW/2
 			bCx := bLeft + bW/2
