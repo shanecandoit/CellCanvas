@@ -34,7 +34,8 @@ func (c *Canvas) SaveState(statePath string) error {
 		p := &c.panels[i]
 		// if no filename assigned, create one
 		if p.Filename == "" {
-			p.Filename = fmt.Sprintf("panel_%d.csv", i)
+			// Use 1-based numbering for generated panel filenames to be more user-friendly
+			p.Filename = fmt.Sprintf("panel_%d.csv", i+1)
 		}
 		// write panel CSV next to state file
 		csvPath := p.Filename
@@ -78,7 +79,9 @@ func (c *Canvas) LoadState(statePath string) error {
 	if len(sf.Panels) > len(c.panels) {
 		// append new blank panels to match count
 		for i := len(c.panels); i < len(sf.Panels); i++ {
-			c.panels = append(c.panels, NewPanel(20+i*32, 20+i*32, 8, 8))
+			// New panels created due to state having more panels than current
+			// should start empty with a small default size (5x5).
+			c.panels = append(c.panels, NewBlankPanel(20+i*32, 20+i*32, 5, 5))
 		}
 	}
 

@@ -287,7 +287,7 @@ func (c *Canvas) Draw(screen *ebiten.Image, g *Game) {
 		ebitenutil.DrawRect(screen, float64(b.TotalX), float64(b.TotalY), float64(b.TotalW), float64(b.TotalH), color.RGBA{0x22, 0x22, 0x2a, 0xff})
 
 		// panel title
-		drawTextAt(screen, g.ui.face, fmt.Sprintf("Panel %d", pi), int(baseX)+PanelInnerPadding, int(baseY-PanelHeaderHeight+2), color.White)
+		drawTextAt(screen, g.ui.face, fmt.Sprintf("Panel %d", pi+1), int(baseX)+PanelInnerPadding, int(baseY-PanelHeaderHeight+2), color.White)
 
 		// draw border
 		// draw the 4 border edges using total bounds
@@ -335,10 +335,19 @@ func NewPanel(x, y, cols, rows int) Panel {
 	cells := make(map[string]string)
 	for r := 0; r < rows; r++ {
 		for c := 0; c < cols; c++ {
+			// NewPanel pre-fills sample content for new app panels; this
+			// provides visible content for initial/demo panels. For a truly
+			// blank panel, use NewBlankPanel instead.
 			cells[CellRef(c, r)] = fmt.Sprintf("R%dC%d", r, c)
 		}
 	}
 	return Panel{X: x, Y: y, Cols: cols, Rows: rows, CellW: defaultCellW, CellH: defaultCellH, Cells: cells, Filename: ""}
+}
+
+// NewBlankPanel creates a panel with provided dimensions but no cell content
+// (empty map). Use this for freshly created blank panels via the UI.
+func NewBlankPanel(x, y, cols, rows int) Panel {
+	return Panel{X: x, Y: y, Cols: cols, Rows: rows, CellW: defaultCellW, CellH: defaultCellH, Cells: make(map[string]string), Filename: ""}
 }
 
 // GetCell returns the string stored at the given col,row (zero-based).
@@ -376,7 +385,8 @@ func (p *Panel) SetCell(col, row int, val string) {
 
 // AddPanelAt appends a new blank panel positioned at given world coordinates
 func (c *Canvas) AddPanelAt(x, y int) {
-	p := NewPanel(x, y, 8, 8)
+	// new panels are 5x5 blank by default
+	p := NewBlankPanel(x, y, 5, 5)
 	p.X = x
 	p.Y = y
 	c.panels = append(c.panels, p)
