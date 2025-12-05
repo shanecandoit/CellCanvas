@@ -53,6 +53,16 @@ func NewCanvas() *Canvas {
 	return c
 }
 
+// RemovePanelAt removes the panel at index i from the canvas if valid.
+// It does not delete any files on disk; it simply drops the panel from
+// the canvas slice so SaveState will no longer reference it.
+func (c *Canvas) RemovePanelAt(i int) {
+	if i < 0 || i >= len(c.panels) {
+		return
+	}
+	c.panels = append(c.panels[:i], c.panels[i+1:]...)
+}
+
 // drawTextAt draws text using the provided face. If face is nil, falls back to ebitenutil.DebugPrintAt.
 func drawTextAt(screen *ebiten.Image, face font.Face, s string, x, y int, col color.Color) {
 	if face == nil {

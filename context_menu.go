@@ -18,6 +18,7 @@ const (
 	MenuActionLoadPanelFromFile
 	MenuActionSavePanelToFile
 	MenuActionExportPanelToCSV
+	MenuActionDeletePanel
 )
 
 // ContextMenu encapsulates the state and behavior of a right-click context menu
@@ -34,7 +35,7 @@ type ContextMenu struct {
 func NewContextMenu() *ContextMenu {
 	return &ContextMenu{
 		visible:     false,
-		items:       []string{"New Blank Panel", "Load Panel from File ...", "Save Panel To...", "Export to CSV..."},
+		items:       []string{"New Blank Panel", "Load Panel from File ...", "Save Panel To...", "Export to CSV...", "Delete Panel"},
 		selected:    -1,
 		targetPanel: -1,
 	}
@@ -94,6 +95,9 @@ func (cm *ContextMenu) Update(g *Game) MenuAction {
 			case 3:
 				cm.visible = false
 				return MenuActionExportPanelToCSV
+			case 4:
+				cm.visible = false
+				return MenuActionDeletePanel
 			}
 		} else {
 			cm.visible = false

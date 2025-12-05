@@ -173,6 +173,38 @@ func (im *InputManager) HandleContextMenuInput(g *Game) {
 				g.ui.addClickLog("saved: " + g.canvas.panels[target].Filename)
 			}
 		}
+	case MenuActionDeletePanel:
+		// Determine the panel to delete: context menu target or active panel
+		target := g.contextMenu.targetPanel
+		if target < 0 {
+			target = g.activePanel
+		}
+		if target < 0 || target >= len(g.canvas.panels) {
+			if g.ui != nil {
+				g.ui.addClickLog("No panel to delete")
+			}
+			break
+		}
+		name := g.canvas.panels[target].Filename
+		// Remove the panel without touching any CSVs on disk
+		g.canvas.RemovePanelAt(target)
+		// adjust active panel selection
+		if len(g.canvas.panels) == 0 {
+			g.activePanel = 0
+			g.selRow = 0
+			g.selCol = 0
+		} else if g.activePanel >= len(g.canvas.panels) {
+			g.activePanel = len(g.canvas.panels) - 1
+			g.selRow = 0
+			g.selCol = 0
+		}
+		if g.ui != nil {
+			if name == "" {
+				g.ui.addClickLog("deleted panel")
+			} else {
+				g.ui.addClickLog("deleted panel: " + name)
+			}
+		}
 	}
 }
 
