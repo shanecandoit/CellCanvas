@@ -1,8 +1,12 @@
 package main
 
 import (
+	"log"
+	"path/filepath"
+
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"github.com/sqweek/dialog"
 )
 
 // InputManager handles input detection and updates game state accordingly.
@@ -36,7 +40,22 @@ func (im *InputManager) HandlePanInput(g *Game) {
 		// small threshold -> treat as click and open context menu
 		if abs(dx) < 6 && abs(dy) < 6 {
 			// toggle context menu at cursor
-			g.contextMenu.Show(mx, my)
+			// Determine which panel (if any) was clicked so menu actions can act on it.
+			target := -1
+			for i := len(g.canvas.panels) - 1; i >= 0; i-- {
+				p := g.canvas.panels[i]
+				b := p.GetBounds(g.canvas.camX, g.canvas.camY)
+				baseX := b.ContentX
+				baseY := b.ContentY
+				w := b.ContentW
+				h := b.ContentH
+				headerY := baseY - PanelHeaderHeight
+				if mx >= baseX && mx <= baseX+w && my >= headerY && my <= headerY+h {
+					target = i
+					break
+				}
+			}
+			g.contextMenu.Show(mx, my, target)
 		}
 		im.dragging = false
 	}
@@ -63,10 +82,97 @@ func (im *InputManager) HandleContextMenuInput(g *Game) {
 		wy := int(float64(g.contextMenu.y) - g.canvas.camY)
 		g.canvas.AddPanelAt(wx, wy)
 	case MenuActionLoadPanelFromFile:
-		// No hardcoded sample CSVs. LoadPanelFromFile requires a user-provided
-		// filename; in this simple UI no filepicker is available, so this
-		// action does nothing unless the code is extended to prompt for a
-		// filename.
+		// Determine which panel to load into: context menu target or active panel
+		target := g.contextMenu.targetPanel
+		if target < 0 {
+			target = g.activePanel
+		}
+		// ask for a CSV file
+		path, err := dialog.File().Filter("CSV", "csv").Title("Load Panel CSV").Load()
+		if err != nil {
+			if err != dialog.ErrCancelled {
+				log.Printf("file open failed: %v", err)
+			}
+			break
+		}
+		if path == "" {
+			break
+		}
+		absPath, _ := filepath.Abs(path)
+		if target < 0 {
+			// create a new panel positioned at the context menu world coords
+			wx := int(float64(g.contextMenu.x) - g.canvas.camX)
+			wy := int(float64(g.contextMenu.y) - g.canvas.camY)
+			if err := g.canvas.AddPanelFromCSV(absPath, wx, wy); err != nil {
+				log.Printf("add panel from csv failed: %v", err)
+				if g.ui != nil {
+					g.ui.addClickLog("failed to add: " + filepath.Base(absPath))
+				}
+			} else {
+				if g.ui != nil {
+					g.ui.addClickLog("added panel: " + filepath.Base(absPath))
+				}
+			}
+		} else {
+			if g.canvas.saveManager != nil {
+				g.canvas.saveManager.ScheduleLoad(target, absPath)
+				if g.ui != nil {
+					g.ui.addClickLog("scheduled load: " + filepath.Base(absPath))
+				}
+			} else {
+				tmp := NewBlankPanel(0, 0, 1, 1)
+				if err := loadPanelCSV(absPath, &tmp); err != nil {
+					log.Printf("load failed: %v", err)
+					if g.ui != nil {
+						g.ui.addClickLog("failed to load: " + filepath.Base(absPath))
+					}
+				} else {
+					tmp.X = g.canvas.panels[target].X
+					tmp.Y = g.canvas.panels[target].Y
+					tmp.Filename = filepath.Base(absPath)
+					tmp.Loaded = true
+					g.canvas.panels[target] = tmp
+					if g.ui != nil {
+						g.ui.addClickLog("loaded: " + tmp.Filename)
+					}
+				}
+			}
+		}
+	case MenuActionSavePanelToFile, MenuActionExportPanelToCSV:
+		// Determine the panel to save: context menu target or active panel
+		target := g.contextMenu.targetPanel
+		if target < 0 {
+			target = g.activePanel
+		}
+		if target < 0 || target >= len(g.canvas.panels) {
+			if g.ui != nil {
+				g.ui.addClickLog("No panel to save")
+			}
+			break
+		}
+		path, err := dialog.File().Filter("CSV", "csv").Title("Save Panel As").Save()
+		if err != nil {
+			if err != dialog.ErrCancelled {
+				log.Printf("file save failed: %v", err)
+			}
+			break
+		}
+		if path == "" {
+			break
+		}
+		absPath, _ := filepath.Abs(path)
+		if err := savePanelCSV(absPath, &g.canvas.panels[target]); err != nil {
+			log.Printf("save failed: %v", err)
+			if g.ui != nil {
+				g.ui.addClickLog("failed to save: " + filepath.Base(absPath))
+			}
+		} else {
+			// update the panel's filename (use relative path if in same directory)
+			g.canvas.panels[target].Filename = filepath.Base(absPath)
+			if g.ui != nil {
+				g.ui.addClickLog("saved: " + g.canvas.panels[target].Filename)
+			}
+		}
 	}
 }
 

@@ -16,6 +16,8 @@ const (
 	MenuActionNone MenuAction = iota
 	MenuActionNewBlankPanel
 	MenuActionLoadPanelFromFile
+	MenuActionSavePanelToFile
+	MenuActionExportPanelToCSV
 )
 
 // ContextMenu encapsulates the state and behavior of a right-click context menu
@@ -25,21 +27,25 @@ type ContextMenu struct {
 	x, y     int
 	items    []string
 	selected int
+	// target panel index for operations that should act on a specific panel
+	targetPanel int
 }
 
 func NewContextMenu() *ContextMenu {
 	return &ContextMenu{
-		visible:  false,
-		items:    []string{"New Blank Panel", "Load Panel from File ..."},
-		selected: -1,
+		visible:     false,
+		items:       []string{"New Blank Panel", "Load Panel from File ...", "Save Panel To...", "Export to CSV..."},
+		selected:    -1,
+		targetPanel: -1,
 	}
 }
 
-func (cm *ContextMenu) Show(x, y int) {
+func (cm *ContextMenu) Show(x, y int, targetPanel int) {
 	cm.visible = true
 	cm.x = x
 	cm.y = y
 	cm.selected = -1
+	cm.targetPanel = targetPanel
 }
 
 func (cm *ContextMenu) Hide() {
@@ -82,6 +88,12 @@ func (cm *ContextMenu) Update(g *Game) MenuAction {
 			case 1:
 				cm.visible = false
 				return MenuActionLoadPanelFromFile
+			case 2:
+				cm.visible = false
+				return MenuActionSavePanelToFile
+			case 3:
+				cm.visible = false
+				return MenuActionExportPanelToCSV
 			}
 		} else {
 			cm.visible = false
