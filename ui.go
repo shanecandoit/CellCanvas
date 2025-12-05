@@ -113,7 +113,7 @@ func (ui *UI) Update(g *Game) {
 		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
 			if g.activePanel >= 0 && g.activePanel < len(g.canvas.panels) {
 				g.editing = true
-				g.editBuffer = g.canvas.panels[g.activePanel].Cells[g.selRow][g.selCol]
+				g.editBuffer = g.canvas.panels[g.activePanel].GetCell(g.selCol, g.selRow)
 				g.editCursor = len([]rune(g.editBuffer))
 				g.blinkCounter = 0
 				g.caretVisible = true
@@ -197,7 +197,7 @@ func (ui *UI) Update(g *Game) {
 	// commit/cancel
 	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
 		if g.activePanel >= 0 && g.activePanel < len(g.canvas.panels) {
-			g.canvas.panels[g.activePanel].Cells[g.selRow][g.selCol] = g.editBuffer
+			g.canvas.panels[g.activePanel].SetCell(g.selCol, g.selRow, g.editBuffer)
 		}
 		g.editing = false
 	}
@@ -213,7 +213,7 @@ func (ui *UI) OnCellClick(g *Game, panel, row, col int) {
 		// double-click: start editing
 		if panel >= 0 && panel < len(g.canvas.panels) {
 			g.editing = true
-			g.editBuffer = g.canvas.panels[panel].Cells[row][col]
+			g.editBuffer = g.canvas.panels[panel].GetCell(col, row)
 			g.editCursor = len([]rune(g.editBuffer))
 			g.blinkCounter = 0
 			g.caretVisible = true

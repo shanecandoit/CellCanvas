@@ -18,7 +18,7 @@ type Panel struct {
 	Rows     int
 	CellW    int
 	CellH    int
-	Cells    [][]string
+	Cells    map[string]string // sparse map of cells keyed A1-style
 	Filename string
 }
 
@@ -151,15 +151,14 @@ func (c *Canvas) Update(g *Game) {
 		}
 		// resize cell grid preserving existing data where possible
 		old := c.panels[i]
-		newCells := make([][]string, rows)
-		for r := 0; r < rows; r++ {
-			newCells[r] = make([]string, cols)
-			for ccol := 0; ccol < cols; ccol++ {
-				if r < old.Rows && ccol < old.Cols {
-					newCells[r][ccol] = old.Cells[r][ccol]
-				} else {
-					newCells[r][ccol] = ""
-				}
+		newCells := make(map[string]string)
+		for key, val := range old.Cells {
+			col, row, err := ParseCellRef(key)
+			if err != nil {
+				continue
+			}
+			if row >= 0 && row < rows && col >= 0 && col < cols {
+				newCells[CellRef(col, row)] = val
 			}
 		}
 		c.panels[i].Cols = cols
@@ -305,7 +304,11 @@ func (c *Canvas) Draw(screen *ebiten.Image, g *Game) {
 				ebitenutil.DrawRect(screen, x, y, float64(p.CellW-1), float64(p.CellH-1), color.RGBA{0x18, 0x18, 0x1c, 0xff})
 				// cell text (light)
 				// if this is the active cell being edited, show the live edit buffer
-				txt := p.Cells[r][ccol]
+				key := CellRef(ccol, r)
+				txt := ""
+				if v, ok := p.Cells[key]; ok {
+					txt = v
+				}
 				if g != nil && g.editing && g.activePanel == pi && r == g.selRow && ccol == g.selCol {
 					txt = g.editBuffer
 				}
@@ -329,14 +332,46 @@ func (c *Canvas) Draw(screen *ebiten.Image, g *Game) {
 }
 
 func NewPanel(x, y, cols, rows int) Panel {
-	cells := make([][]string, rows)
-	for r := range cells {
-		cells[r] = make([]string, cols)
+	cells := make(map[string]string)
+	for r := 0; r < rows; r++ {
 		for c := 0; c < cols; c++ {
-			cells[r][c] = fmt.Sprintf("R%dC%d", r, c)
+			cells[CellRef(c, r)] = fmt.Sprintf("R%dC%d", r, c)
 		}
 	}
 	return Panel{X: x, Y: y, Cols: cols, Rows: rows, CellW: defaultCellW, CellH: defaultCellH, Cells: cells, Filename: ""}
+}
+
+// GetCell returns the string stored at the given col,row (zero-based).
+// Returns empty string when not present.
+func (p *Panel) GetCell(col, row int) string {
+	if p == nil {
+		return ""
+	}
+	if p.Cells == nil {
+		return ""
+	}
+	key := CellRef(col, row)
+	if v, ok := p.Cells[key]; ok {
+		return v
+	}
+	return ""
+}
+
+// SetCell writes a value at the given col,row. Empty values remove the entry
+// to keep the structure sparse.
+func (p *Panel) SetCell(col, row int, val string) {
+	if p == nil {
+		return
+	}
+	if p.Cells == nil {
+		p.Cells = make(map[string]string)
+	}
+	key := CellRef(col, row)
+	if val == "" {
+		delete(p.Cells, key)
+	} else {
+		p.Cells[key] = val
+	}
 }
 
 // AddPanelAt appends a new blank panel positioned at given world coordinates

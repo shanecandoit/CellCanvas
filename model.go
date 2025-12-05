@@ -123,11 +123,7 @@ func savePanelCSV(path string, p *Panel) error {
 	for r := 0; r < p.Rows; r++ {
 		row := make([]string, p.Cols)
 		for cidx := 0; cidx < p.Cols; cidx++ {
-			if r < len(p.Cells) && cidx < len(p.Cells[r]) {
-				row[cidx] = p.Cells[r][cidx]
-			} else {
-				row[cidx] = ""
-			}
+			row[cidx] = p.GetCell(cidx, r)
 		}
 		if err := w.Write(row); err != nil {
 			return err
@@ -152,7 +148,7 @@ func loadPanelCSV(path string, p *Panel) error {
 		// empty file -> zero-sized panel
 		p.Rows = 0
 		p.Cols = 0
-		p.Cells = [][]string{}
+		p.Cells = map[string]string{}
 		return nil
 	}
 	cols := 0
@@ -162,14 +158,15 @@ func loadPanelCSV(path string, p *Panel) error {
 		}
 	}
 	rows := len(records)
-	cells := make([][]string, rows)
+	cells := make(map[string]string)
 	for i := 0; i < rows; i++ {
-		cells[i] = make([]string, cols)
 		for j := 0; j < cols; j++ {
+			v := ""
 			if j < len(records[i]) {
-				cells[i][j] = records[i][j]
-			} else {
-				cells[i][j] = ""
+				v = records[i][j]
+			}
+			if v != "" {
+				cells[CellRef(j, i)] = v
 			}
 		}
 	}
