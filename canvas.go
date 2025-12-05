@@ -23,9 +23,8 @@ type Panel struct {
 }
 
 // panelGap is the minimum spacing (in pixels) to keep between panels.
-// The codebase already uses small offsets like 4 when drawing panels, so
-// 4 is a sensible default. Change to 8 or 10 if you prefer a larger gap.
-const panelGap = 4
+// This uses PanelPaddingX to calculate spacing.
+const panelGap = PanelPaddingX
 
 // axisHysteresis prevents immediate axis switching; the other axis must have
 // a violation larger by this many pixels before we switch to it.
@@ -69,13 +68,14 @@ func (c *Canvas) Update(g *Game) {
 		picked := -1
 		for i := len(c.panels) - 1; i >= 0; i-- {
 			p := c.panels[i]
-			baseX := int(float64(p.X) + c.camX)
-			baseY := int(float64(p.Y) + c.camY)
-			w := p.Cols * p.CellW
-			h := p.Rows * p.CellH
-			// header area (title bar) - 18px high above panel
-			headerY := baseY - 20
-			if mx >= baseX && mx <= baseX+w && my >= headerY && my <= headerY+20 {
+			b := p.GetBounds(c.camX, c.camY)
+			baseX := b.ContentX
+			baseY := b.ContentY
+			w := b.ContentW
+			h := b.ContentH
+			// header area (title bar)
+			headerY := baseY - PanelHeaderHeight
+			if mx >= baseX && mx <= baseX+w && my >= headerY && my <= headerY+PanelHeaderHeight {
 				picked = i
 				// start moving
 				c.movingPanel = i
@@ -84,7 +84,7 @@ func (c *Canvas) Update(g *Game) {
 				break
 			}
 			// resize corner (bottom-right 16x16)
-			if mx >= baseX+w-16 && mx <= baseX+w && my >= baseY+h-16 && my <= baseY+h {
+			if mx >= baseX+w-ResizeHandleSize && mx <= baseX+w && my >= baseY+h-ResizeHandleSize && my <= baseY+h {
 				picked = i
 				c.resizingPanel = i
 				c.moveOffsetX = mx - (baseX + w)
@@ -128,8 +128,9 @@ func (c *Canvas) Update(g *Game) {
 	if c.resizingPanel != -1 && ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 		i := c.resizingPanel
 		mx, my := ebiten.CursorPosition()
-		baseX := int(float64(c.panels[i].X) + c.camX)
-		baseY := int(float64(c.panels[i].Y) + c.camY)
+		b := c.panels[i].GetBounds(c.camX, c.camY)
+		baseX := b.ContentX
+		baseY := b.ContentY
 		// compute width/height from base to cursor (minus offset)
 		w := (mx - baseX - c.moveOffsetX)
 		h := (my - baseY - c.moveOffsetY)
@@ -188,8 +189,8 @@ func (c *Canvas) resolveOneOverlap() {
 			continue
 		}
 		a := c.panels[i]
-		aLeft := a.X - 4
-		aW := a.Cols*a.CellW + 8
+		aLeft := a.X - PanelPaddingX
+		aW := a.Cols*a.CellW + PanelPaddingX*2
 
 		for j := i + 1; j < len(c.panels); j++ {
 			// skip if this panel is being interacted with
@@ -197,8 +198,8 @@ func (c *Canvas) resolveOneOverlap() {
 				continue
 			}
 			b := c.panels[j]
-			bLeft := b.X - 4
-			bW := b.Cols*b.CellW + 8
+			bLeft := b.X - PanelPaddingX
+			bW := b.Cols*b.CellW + PanelPaddingX*2
 
 			// Only perform horizontal separation: compute X overlap/gap and
 			// move panel j by 1 pixel along X away from panel i when the
@@ -234,10 +235,10 @@ func (c *Canvas) resolveOneOverlap() {
 
 			// Only separate panels that actually overlap vertically as well.
 			// Compute vertical bounds used elsewhere when drawing (title/header included)
-			aTop := a.Y - 20
-			aH := a.Rows*a.CellH + 28
-			bTop := b.Y - 20
-			bH := b.Rows*b.CellH + 28
+			aTop := a.Y - PanelHeaderHeight
+			aH := a.Rows*a.CellH + PanelHeaderHeight + PanelPaddingY*2
+			bTop := b.Y - PanelHeaderHeight
+			bH := b.Rows*b.CellH + PanelHeaderHeight + PanelPaddingY*2
 			overlapY := min(aTop+aH, bTop+bH) - max(aTop, bTop)
 			if overlapY <= 0 {
 				// panels are vertically separated (one is above/below the other)
@@ -279,20 +280,22 @@ func max(a, b int) int {
 // Draw renders the panels; selection overlay is drawn here but editing text is handled by UI
 func (c *Canvas) Draw(screen *ebiten.Image, g *Game) {
 	for pi, p := range c.panels {
-		baseX := float64(p.X) + c.camX
-		baseY := float64(p.Y) + c.camY
+		b := p.GetBounds(c.camX, c.camY)
+		baseX := float64(b.ContentX)
+		baseY := float64(b.ContentY)
 
 		// panel background
-		ebitenutil.DrawRect(screen, baseX-4, baseY-20, float64(p.Cols*p.CellW)+8, float64(p.Rows*p.CellH)+28, color.RGBA{0x22, 0x22, 0x2a, 0xff})
+		ebitenutil.DrawRect(screen, float64(b.TotalX), float64(b.TotalY), float64(b.TotalW), float64(b.TotalH), color.RGBA{0x22, 0x22, 0x2a, 0xff})
 
 		// panel title
-		drawTextAt(screen, g.ui.face, fmt.Sprintf("Panel %d", pi), int(baseX)+6, int(baseY-18), color.White)
+		drawTextAt(screen, g.ui.face, fmt.Sprintf("Panel %d", pi), int(baseX)+PanelInnerPadding, int(baseY-PanelHeaderHeight+2), color.White)
 
 		// draw border
-		ebitenutil.DrawRect(screen, baseX-4, baseY-20, 2, float64(p.Rows*p.CellH)+28, color.RGBA{0x44, 0x44, 0x50, 0xff})
-		ebitenutil.DrawRect(screen, baseX-4, baseY-20, float64(p.Cols*p.CellW)+8, 2, color.RGBA{0x44, 0x44, 0x50, 0xff})
-		ebitenutil.DrawRect(screen, baseX+float64(p.Cols*p.CellW)+4, baseY-20, 2, float64(p.Rows*p.CellH)+28, color.RGBA{0x44, 0x44, 0x50, 0xff})
-		ebitenutil.DrawRect(screen, baseX-4, baseY+float64(p.Rows*p.CellH)+8, float64(p.Cols*p.CellW)+8, 2, color.RGBA{0x44, 0x44, 0x50, 0xff})
+		// draw the 4 border edges using total bounds
+		ebitenutil.DrawRect(screen, float64(b.TotalX), float64(b.TotalY), float64(PanelBorderWidth), float64(b.TotalH), color.RGBA{0x44, 0x44, 0x50, 0xff})
+		ebitenutil.DrawRect(screen, float64(b.TotalX), float64(b.TotalY), float64(b.TotalW), float64(PanelBorderWidth), color.RGBA{0x44, 0x44, 0x50, 0xff})
+		ebitenutil.DrawRect(screen, float64(b.TotalX+b.TotalW-PanelBorderWidth), float64(b.TotalY), float64(PanelBorderWidth), float64(b.TotalH), color.RGBA{0x44, 0x44, 0x50, 0xff})
+		ebitenutil.DrawRect(screen, float64(b.TotalX), float64(b.TotalY+b.TotalH-PanelBorderWidth), float64(b.TotalW), float64(PanelBorderWidth), color.RGBA{0x44, 0x44, 0x50, 0xff})
 
 		for r := 0; r < p.Rows; r++ {
 			for ccol := 0; ccol < p.Cols; ccol++ {
@@ -306,7 +309,7 @@ func (c *Canvas) Draw(screen *ebiten.Image, g *Game) {
 				if g != nil && g.editing && g.activePanel == pi && r == g.selRow && ccol == g.selCol {
 					txt = g.editBuffer
 				}
-				drawTextAt(screen, g.ui.face, txt, int(x)+6, int(y)+6, color.White)
+				drawTextAt(screen, g.ui.face, txt, int(x)+PanelInnerPadding, int(y)+PanelInnerPadding, color.White)
 			}
 		}
 
@@ -319,9 +322,9 @@ func (c *Canvas) Draw(screen *ebiten.Image, g *Game) {
 		}
 
 		// draw resize handle
-		rx := baseX + float64(p.Cols*p.CellW) - 12
-		ry := baseY + float64(p.Rows*p.CellH) - 12
-		ebitenutil.DrawRect(screen, rx, ry, 12, 12, color.RGBA{0x55, 0x55, 0x66, 0xff})
+		rx := baseX + float64(p.Cols*p.CellW) - ResizeHandleSize
+		ry := baseY + float64(p.Rows*p.CellH) - ResizeHandleSize
+		ebitenutil.DrawRect(screen, rx, ry, float64(ResizeHandleSize), float64(ResizeHandleSize), color.RGBA{0x55, 0x55, 0x66, 0xff})
 	}
 }
 

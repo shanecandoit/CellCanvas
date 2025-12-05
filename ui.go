@@ -285,7 +285,7 @@ func (ui *UI) Draw(screen *ebiten.Image, g *Game) {
 			p := g.canvas.panels[g.activePanel]
 			sx := float64(p.X) + g.canvas.camX + float64(g.selCol*p.CellW)
 			sy := float64(p.Y) + g.canvas.camY + float64(g.selRow*p.CellH)
-			drawTextAt(screen, ui.face, g.editBuffer, int(sx)+6, int(sy)+6, color.White)
+			drawTextAt(screen, ui.face, g.editBuffer, int(sx)+PanelInnerPadding, int(sy)+PanelInnerPadding, color.White)
 		}
 	}
 

@@ -109,10 +109,10 @@ func (cm *ContextMenu) Draw(screen *ebiten.Image, face font.Face) {
 	x := cm.x
 	y := cm.y
 	// background with small padding
-	bgX := float64(x - 4)
-	bgY := float64(y - 4)
-	bgW := float64(w + 8)
-	bgH := float64(itemH*len(cm.items) + 8)
+	bgX := float64(x - PanelPaddingX)
+	bgY := float64(y - PanelPaddingY)
+	bgW := float64(w + PanelPaddingX*2)
+	bgH := float64(itemH*len(cm.items) + PanelPaddingY*2)
 	ebitenutil.DrawRect(screen, bgX, bgY, bgW, bgH, color.RGBA{0x10, 0x10, 0x12, 0xff})
 	// border
 	ebitenutil.DrawRect(screen, bgX, bgY, bgW, 2, color.RGBA{0x44, 0x44, 0x50, 0xff})
@@ -126,10 +126,10 @@ func (cm *ContextMenu) Draw(screen *ebiten.Image, face font.Face) {
 		if cm.selected == i {
 			ebitenutil.DrawRect(screen, float64(x), float64(iy), float64(w), float64(itemH), color.RGBA{0x33, 0x55, 0xff, 0xff})
 			// draw text in white
-			drawTextAt(screen, face, it, x+8, iy+6, color.White)
+			drawTextAt(screen, face, it, x+PanelInnerPadding+2, iy+PanelInnerPadding, color.White)
 		} else {
 			// normal background (transparent) and text
-			drawTextAt(screen, face, it, x+8, iy+6, color.White)
+			drawTextAt(screen, face, it, x+PanelInnerPadding+2, iy+PanelInnerPadding, color.White)
 		}
 	}
 }
