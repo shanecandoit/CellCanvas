@@ -304,35 +304,5 @@ func (ui *UI) Draw(screen *ebiten.Image, g *Game) {
 	}
 
 	// draw right-click context menu if visible
-	if g.contextVisible {
-		itemH := 28
-		w := 240
-		x := g.contextX
-		y := g.contextY
-		// background with small padding
-		bgX := float64(x - 4)
-		bgY := float64(y - 4)
-		bgW := float64(w + 8)
-		bgH := float64(itemH*2 + 8)
-		ebitenutil.DrawRect(screen, bgX, bgY, bgW, bgH, color.RGBA{0x10, 0x10, 0x12, 0xff})
-		// border
-		ebitenutil.DrawRect(screen, bgX, bgY, bgW, 2, color.RGBA{0x44, 0x44, 0x50, 0xff})
-		ebitenutil.DrawRect(screen, bgX, bgY+bgH-2, bgW, 2, color.RGBA{0x44, 0x44, 0x50, 0xff})
-		ebitenutil.DrawRect(screen, bgX, bgY, 2, bgH, color.RGBA{0x44, 0x44, 0x50, 0xff})
-		ebitenutil.DrawRect(screen, bgX+bgW-2, bgY, 2, bgH, color.RGBA{0x44, 0x44, 0x50, 0xff})
-
-		items := []string{"New Blank Panel", "Load Panel from File ..."}
-		for i, it := range items {
-			iy := y + i*itemH
-			// highlight on hover
-			if g.contextSelected == i {
-				ebitenutil.DrawRect(screen, float64(x), float64(iy), float64(w), float64(itemH), color.RGBA{0x33, 0x55, 0xff, 0xff})
-				// draw text in white
-				drawTextAt(screen, ui.face, it, x+8, iy+6, color.White)
-			} else {
-				// normal background (transparent) and text
-				drawTextAt(screen, ui.face, it, x+8, iy+6, color.White)
-			}
-		}
-	}
+	g.contextMenu.Draw(screen, ui.face)
 }
