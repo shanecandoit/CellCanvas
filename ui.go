@@ -289,14 +289,15 @@ func (ui *UI) Draw(screen *ebiten.Image, g *Game) {
 		}
 	}
 
-	// Draw recent mouse click log at top-right
+	// Draw recent mouse click log at bottom-right
 	if len(ui.clickLog) > 0 {
 		sw := screen.Bounds().Dx()
-		x := sw - 360
-		y := 8
-		// background box
+		sh := screen.Bounds().Dy()
 		boxW := 352
 		boxH := len(ui.clickLog)*16 + 8
+		x := sw - boxW - 8
+		y := sh - boxH - 8
+		// background box
 		ebitenutil.DrawRect(screen, float64(x-8), float64(y-6), float64(boxW+16), float64(boxH+12), color.RGBA{0x0c, 0x0c, 0x0e, 0xee})
 		for i, line := range ui.clickLog {
 			drawTextAt(screen, ui.face, line, x, y+i*14, color.RGBA{0xdd, 0xdd, 0xdd, 0xff})
