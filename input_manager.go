@@ -63,13 +63,10 @@ func (im *InputManager) HandleContextMenuInput(g *Game) {
 		wy := int(float64(g.contextMenu.y) - g.canvas.camY)
 		g.canvas.AddPanelAt(wx, wy)
 	case MenuActionLoadPanelFromFile:
-		// Try primary sample CSVs: prefer 1-based names for user-friendly naming.
-		// try panel_1 first; fallback to panel_0 for backward compatibility; finally try panel_2
-		if err := g.canvas.AddPanelFromCSV("panel_1.csv", int(float64(g.contextMenu.x)-g.canvas.camX), int(float64(g.contextMenu.y)-g.canvas.camY)); err != nil {
-			if err := g.canvas.AddPanelFromCSV("panel_0.csv", int(float64(g.contextMenu.x)-g.canvas.camX), int(float64(g.contextMenu.y)-g.canvas.camY)); err != nil {
-				_ = g.canvas.AddPanelFromCSV("panel_2.csv", int(float64(g.contextMenu.x)-g.canvas.camX), int(float64(g.contextMenu.y)-g.canvas.camY))
-			}
-		}
+		// No hardcoded sample CSVs. LoadPanelFromFile requires a user-provided
+		// filename; in this simple UI no filepicker is available, so this
+		// action does nothing unless the code is extended to prompt for a
+		// filename.
 	}
 }
 

@@ -20,6 +20,7 @@ type Panel struct {
 	CellH    int
 	Cells    map[string]string // sparse map of cells keyed A1-style
 	Filename string
+	Loaded   bool
 }
 
 // panelGap is the minimum spacing (in pixels) to keep between panels.
@@ -39,12 +40,16 @@ type Canvas struct {
 	resizingPanel int
 	moveOffsetX   int
 	moveOffsetY   int
+	// SaveManager manages background CSV loads and applies them on the UI thread.
+	saveManager *SaveManager
 }
 
 func NewCanvas() *Canvas {
 	c := &Canvas{movingPanel: -1, resizingPanel: -1}
-	c.panels = append(c.panels, NewPanel(20, 20, 8, 16))
-	c.panels = append(c.panels, NewPanel(520, 20, 6, 12))
+	// Start with no sample/demo panels by default. Panels will be created
+	// by state load or user actions.
+	c.panels = []Panel{}
+	c.saveManager = NewSaveManager()
 	return c
 }
 
@@ -62,6 +67,11 @@ func drawTextAt(screen *ebiten.Image, face font.Face, s string, x, y int, col co
 
 // Update handles panel interactions: picking, moving, resizing, selection
 func (c *Canvas) Update(g *Game) {
+	// Process background loads completed by SaveManager (keeps canvas free
+	// of channel handling).
+	if c.saveManager != nil {
+		c.saveManager.ApplyPending(c, g)
+	}
 	mx, my := ebiten.CursorPosition()
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 		// check panels from top (last) to bottom (first)
@@ -91,8 +101,12 @@ func (c *Canvas) Update(g *Game) {
 				c.moveOffsetY = my - (baseY + h)
 				break
 			}
-			// click inside panel -> select panel and a cell
+			// click inside panel -> select panel and a cell (only when loaded)
 			if mx >= baseX && mx <= baseX+w && my >= baseY && my <= baseY+h {
+				if !p.Loaded {
+					// ignore clicks inside placeholder panels
+					continue
+				}
 				picked = i
 				g.activePanel = i
 				// compute selected cell
@@ -296,23 +310,31 @@ func (c *Canvas) Draw(screen *ebiten.Image, g *Game) {
 		ebitenutil.DrawRect(screen, float64(b.TotalX+b.TotalW-PanelBorderWidth), float64(b.TotalY), float64(PanelBorderWidth), float64(b.TotalH), color.RGBA{0x44, 0x44, 0x50, 0xff})
 		ebitenutil.DrawRect(screen, float64(b.TotalX), float64(b.TotalY+b.TotalH-PanelBorderWidth), float64(b.TotalW), float64(PanelBorderWidth), color.RGBA{0x44, 0x44, 0x50, 0xff})
 
-		for r := 0; r < p.Rows; r++ {
-			for ccol := 0; ccol < p.Cols; ccol++ {
-				x := baseX + float64(ccol*p.CellW)
-				y := baseY + float64(r*p.CellH)
-				// cell bg (slightly lighter card)
-				ebitenutil.DrawRect(screen, x, y, float64(p.CellW-1), float64(p.CellH-1), color.RGBA{0x18, 0x18, 0x1c, 0xff})
-				// cell text (light)
-				// if this is the active cell being edited, show the live edit buffer
-				key := CellRef(ccol, r)
-				txt := ""
-				if v, ok := p.Cells[key]; ok {
-					txt = v
+		// If panel isn't loaded yet, draw a loading placeholder and skip
+		// drawing cell content.
+		if !p.Loaded {
+			// placeholder: a darker rectangle and 'Loading...' title
+			ebitenutil.DrawRect(screen, float64(b.ContentX), float64(b.ContentY), float64(b.ContentW), float64(b.ContentH), color.RGBA{0x0f, 0x0f, 0x12, 0xff})
+			drawTextAt(screen, g.ui.face, "Loading...", int(baseX)+PanelInnerPadding, int(baseY)+PanelInnerPadding, color.White)
+		} else {
+			for r := 0; r < p.Rows; r++ {
+				for ccol := 0; ccol < p.Cols; ccol++ {
+					x := baseX + float64(ccol*p.CellW)
+					y := baseY + float64(r*p.CellH)
+					// cell bg (slightly lighter card)
+					ebitenutil.DrawRect(screen, x, y, float64(p.CellW-1), float64(p.CellH-1), color.RGBA{0x18, 0x18, 0x1c, 0xff})
+					// cell text (light)
+					// if this is the active cell being edited, show the live edit buffer
+					key := CellRef(ccol, r)
+					txt := ""
+					if v, ok := p.Cells[key]; ok {
+						txt = v
+					}
+					if g != nil && g.editing && g.activePanel == pi && r == g.selRow && ccol == g.selCol {
+						txt = g.editBuffer
+					}
+					drawTextAt(screen, g.ui.face, txt, int(x)+PanelInnerPadding, int(y)+PanelInnerPadding, color.White)
 				}
-				if g != nil && g.editing && g.activePanel == pi && r == g.selRow && ccol == g.selCol {
-					txt = g.editBuffer
-				}
-				drawTextAt(screen, g.ui.face, txt, int(x)+PanelInnerPadding, int(y)+PanelInnerPadding, color.White)
 			}
 		}
 
@@ -332,22 +354,15 @@ func (c *Canvas) Draw(screen *ebiten.Image, g *Game) {
 }
 
 func NewPanel(x, y, cols, rows int) Panel {
-	cells := make(map[string]string)
-	for r := 0; r < rows; r++ {
-		for c := 0; c < cols; c++ {
-			// NewPanel pre-fills sample content for new app panels; this
-			// provides visible content for initial/demo panels. For a truly
-			// blank panel, use NewBlankPanel instead.
-			cells[CellRef(c, r)] = fmt.Sprintf("R%dC%d", r, c)
-		}
-	}
-	return Panel{X: x, Y: y, Cols: cols, Rows: rows, CellW: defaultCellW, CellH: defaultCellH, Cells: cells, Filename: ""}
+	// NewPanel creates a panel with default empty content. We no longer
+	// pre-fill sample values so newly created panels are blank.
+	return Panel{X: x, Y: y, Cols: cols, Rows: rows, CellW: defaultCellW, CellH: defaultCellH, Cells: make(map[string]string), Filename: "", Loaded: true}
 }
 
 // NewBlankPanel creates a panel with provided dimensions but no cell content
 // (empty map). Use this for freshly created blank panels via the UI.
 func NewBlankPanel(x, y, cols, rows int) Panel {
-	return Panel{X: x, Y: y, Cols: cols, Rows: rows, CellW: defaultCellW, CellH: defaultCellH, Cells: make(map[string]string), Filename: ""}
+	return Panel{X: x, Y: y, Cols: cols, Rows: rows, CellW: defaultCellW, CellH: defaultCellH, Cells: make(map[string]string), Filename: "", Loaded: true}
 }
 
 // GetCell returns the string stored at the given col,row (zero-based).
@@ -395,7 +410,7 @@ func (c *Canvas) AddPanelAt(x, y int) {
 // AddPanelFromCSV loads a CSV file into a new panel positioned at x,y.
 // Returns an error if loading the CSV fails.
 func (c *Canvas) AddPanelFromCSV(path string, x, y int) error {
-	p := NewPanel(x, y, 1, 1)
+	p := NewBlankPanel(x, y, 1, 1)
 	if err := loadPanelCSV(path, &p); err != nil {
 		return err
 	}
@@ -403,6 +418,10 @@ func (c *Canvas) AddPanelFromCSV(path string, x, y int) error {
 	p.Filename = filepath.Base(path)
 	p.X = x
 	p.Y = y
+	p.Loaded = true
 	c.panels = append(c.panels, p)
 	return nil
 }
+
+// scheduleBackgroundLoad is implemented in model.go so CSV loading
+// and related data handling remain grouped with the model I/O code.

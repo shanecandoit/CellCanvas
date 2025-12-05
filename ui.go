@@ -78,6 +78,11 @@ func (ui *UI) Update(g *Game) {
 			w := p.Cols * p.CellW
 			h := p.Rows * p.CellH
 			if mx >= baseX && mx <= baseX+w && my >= baseY && my <= baseY+h {
+				if !p.Loaded {
+					ui.addClickLog(fmt.Sprintf("%s click @ %d,%d  panel=%d (loading)", btn, mx, my, i))
+					found = true
+					break
+				}
 				col := (mx - baseX) / p.CellW
 				row := (my - baseY) / p.CellH
 				ui.addClickLog(fmt.Sprintf("%s click @ %d,%d  panel=%d row=%d col=%d", btn, mx, my, i, row, col))

@@ -22,6 +22,74 @@ type stateFile struct {
 	Panels []statePanel `yaml:"panels"`
 }
 
+// loadResult is used to pass loaded CSV data back into the main loop.
+// It is defined in model.go so CSV I/O and background scheduling live in the
+// same file.
+type loadResult struct {
+	idx      int
+	p        Panel
+	err      error
+	filename string
+}
+
+// SaveManager coordinates background CSV loads and applies them safely
+// on the main thread. It owns the internal channel and does not expose it
+// to canvas.go so we keep canvas free of concurrency primitives.
+type SaveManager struct {
+	loadCh chan loadResult
+}
+
+// NewSaveManager creates and initializes a SaveManager.
+func NewSaveManager() *SaveManager {
+	return &SaveManager{loadCh: make(chan loadResult, 8)}
+}
+
+// ScheduleLoad starts a background load of CSV file and will send the
+// resulting loadResult on the manager's channel when done.
+func (sm *SaveManager) ScheduleLoad(idx int, path string) {
+	// spawn a goroutine to do IO and parsing
+	go func(i int, pth string) {
+		tmp := NewBlankPanel(0, 0, 1, 1)
+		err := loadPanelCSV(pth, &tmp)
+		sm.loadCh <- loadResult{idx: i, p: tmp, err: err, filename: filepath.Base(pth)}
+	}(idx, path)
+}
+
+// ApplyPending consumes any completed loads and applies them into the
+// provided canvas. It will also optionally log failures via the game's UI.
+func (sm *SaveManager) ApplyPending(c *Canvas, g *Game) {
+	if sm == nil || sm.loadCh == nil {
+		return
+	}
+	for {
+		select {
+		case r := <-sm.loadCh:
+			if r.err == nil {
+				if r.idx >= 0 && r.idx < len(c.panels) {
+					// preserve existing X/Y, and copy loaded content
+					existing := c.panels[r.idx]
+					r.p.X = existing.X
+					r.p.Y = existing.Y
+					r.p.Filename = r.filename
+					r.p.Loaded = true
+					c.panels[r.idx] = r.p
+				}
+			} else {
+				if r.idx >= 0 && r.idx < len(c.panels) {
+					c.panels[r.idx].Filename = r.filename
+					// keep panel as not loaded (placeholder)
+					c.panels[r.idx].Loaded = false
+				}
+				if g != nil && g.ui != nil {
+					g.ui.addClickLog(fmt.Sprintf("failed to background load %s: %v", r.filename, r.err))
+				}
+			}
+		default:
+			return
+		}
+	}
+}
+
 // SaveState writes a small YAML file describing camera and panel pointers.
 // Each panel is saved as a separate CSV file next to the YAML file when the
 // panel has no Filename yet (or when force is true). Filenames in the YAML are
@@ -85,7 +153,9 @@ func (c *Canvas) LoadState(statePath string) error {
 		}
 	}
 
-	// load each panel referenced
+	// load each panel referenced. We do not block while loading CSVs; instead
+	// place blank panels at the configured positions and schedule background
+	// CSV loads so the UI can appear immediately.
 	baseDir := filepath.Dir(statePath)
 	for i, sp := range sf.Panels {
 		if i >= len(c.panels) {
@@ -94,18 +164,34 @@ func (c *Canvas) LoadState(statePath string) error {
 		p := &c.panels[i]
 		p.X = sp.X
 		p.Y = sp.Y
+		// Make sure the panel is empty/blank until CSV load completes.
+		p.Cells = make(map[string]string)
+		p.Rows = 5
+		p.Cols = 5
+		// If the panel references a CSV file, mark it not loaded and
+		// schedule loading; if there's no file, the panel is considered
+		// ready/active.
+		p.Loaded = (sp.Filename == "")
 		if sp.Filename != "" {
 			csvPath := sp.Filename
 			if !filepath.IsAbs(csvPath) {
 				csvPath = filepath.Join(baseDir, csvPath)
 			}
-			if err := loadPanelCSV(csvPath, p); err != nil {
-				// non-fatal: continue but record filename
-				p.Filename = sp.Filename
-				continue
-			}
-			// store the relative filename in panel
 			p.Filename = sp.Filename
+			// schedule background load; safe even if the loader fails
+			if c.saveManager != nil {
+				c.saveManager.ScheduleLoad(i, csvPath)
+			} else {
+				// fallback to synchronous load if manager missing
+				tmp := NewBlankPanel(0, 0, 1, 1)
+				_ = loadPanelCSV(csvPath, &tmp)
+				// apply the loaded tmp directly
+				tmp.X = p.X
+				tmp.Y = p.Y
+				tmp.Filename = filepath.Base(csvPath)
+				tmp.Loaded = (tmp.Rows > 0 && tmp.Cols > 0) || len(tmp.Cells) > 0
+				c.panels[i] = tmp
+			}
 		}
 	}
 	c.camX = sf.CamX

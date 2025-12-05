@@ -44,6 +44,11 @@ func NewGame() *Game {
 	g.activePanel = 0
 	g.selRow = 0
 	g.selCol = 0
+	// Attempt to load initial layout from `state.yml` non-blocking.
+	// LoadState schedules any CSV loads in the background.
+	if err := g.canvas.LoadState("state.yml"); err != nil {
+		log.Printf("LoadState: %v", err)
+	}
 	return g
 }
 
