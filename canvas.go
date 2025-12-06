@@ -21,11 +21,18 @@ type Panel struct {
 	Cells    map[string]string // sparse map of cells keyed A1-style
 	Filename string
 	Loaded   bool
+	Name     string
 }
 
 // panelGap is the minimum spacing (in pixels) to keep between panels.
 // This uses PanelPaddingX to calculate spacing.
 const panelGap = PanelPaddingX
+
+// panel header center name button defaults
+const (
+	PanelNameButtonW = 96
+	PanelNameButtonH = 14
+)
 
 // axisHysteresis prevents immediate axis switching; the other axis must have
 // a violation larger by this many pixels before we switch to it.
@@ -95,6 +102,18 @@ func (c *Canvas) Update(g *Game) {
 			h := b.ContentH
 			// header area (title bar)
 			headerY := baseY - PanelHeaderHeight
+			// detect header-centered name button clicks (centered horizontally)
+			btnX := baseX + w/2 - PanelNameButtonW/2
+			btnY := headerY + (PanelHeaderHeight-PanelNameButtonH)/2
+			if mx >= btnX && mx <= btnX+PanelNameButtonW && my >= btnY && my <= btnY+PanelNameButtonH {
+				// header name button clicked
+				if g.ui != nil {
+					g.ui.OnPanelNameClick(g, i)
+				}
+				picked = i
+				break
+			}
+
 			if mx >= baseX && mx <= baseX+w && my >= headerY && my <= headerY+PanelHeaderHeight {
 				picked = i
 				// start moving
@@ -312,6 +331,47 @@ func (c *Canvas) Draw(screen *ebiten.Image, g *Game) {
 
 		// panel title
 		drawTextAt(screen, g.ui.face, fmt.Sprintf("Panel %d", pi+1), int(baseX)+PanelInnerPadding, int(baseY-PanelHeaderHeight+2), color.White)
+
+		// draw a blank clickable name button centered in the header (blank by design)
+		btnX := baseX + float64(b.ContentW)/2 - float64(PanelNameButtonW)/2
+		btnY := float64(baseY) - float64(PanelHeaderHeight) + float64((PanelHeaderHeight-PanelNameButtonH)/2)
+		ebitenutil.DrawRect(screen, btnX, btnY, float64(PanelNameButtonW), float64(PanelNameButtonH), color.RGBA{0x11, 0x11, 0x16, 0xff})
+
+		// draw panel's alias/name inside the header button; when editing, draw live buffer
+		nameToShow := p.Name
+		// Choose the game edit buffer if editing and this is the edit panel
+		if g != nil && g.editingPanelName && g.editPanelIndex == pi {
+			nameToShow = g.editPanelBuffer
+		}
+		if nameToShow != "" && g != nil && g.ui != nil && g.ui.face != nil {
+			bnd, _ := font.BoundString(g.ui.face, nameToShow)
+			textW := int((bnd.Max.X - bnd.Min.X) >> 6)
+			// center horizontally within the button
+			tx := btnX + float64(PanelNameButtonW-textW)/2
+			drawTextAt(screen, g.ui.face, nameToShow, int(tx), int(btnY), color.White)
+
+			// draw blinking caret when editing the panel name
+			if g.editingPanelName && g.editPanelIndex == pi && g.caretVisible {
+				// compute pre-caret width
+				rs := []rune(g.editPanelBuffer)
+				if g.editPanelCursor < 0 {
+					g.editPanelCursor = 0
+				}
+				if g.editPanelCursor > len(rs) {
+					g.editPanelCursor = len(rs)
+				}
+				pre := string(rs[:g.editPanelCursor])
+				pb, _ := font.BoundString(g.ui.face, pre)
+				preW := int((pb.Max.X - pb.Min.X) >> 6)
+				caretX := tx + float64(preW)
+				ascent := g.ui.face.Metrics().Ascent.Round()
+				descent := g.ui.face.Metrics().Descent.Round()
+				caretH := ascent + descent
+				// center caret vertically inside the button
+				caretY := int(btnY) + (PanelNameButtonH-caretH)/2
+				ebitenutil.DrawRect(screen, float64(caretX), float64(caretY), 2, float64(caretH), color.White)
+			}
+		}
 
 		// draw border
 		// draw the 4 border edges using total bounds

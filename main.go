@@ -31,6 +31,11 @@ type Game struct {
 	editCursor   int
 	blinkCounter int
 	caretVisible bool
+	// panel name editing
+	editingPanelName bool
+	editPanelBuffer  string
+	editPanelCursor  int
+	editPanelIndex   int
 
 	// context menu (now managed by ContextMenu)
 }
@@ -44,6 +49,8 @@ func NewGame() *Game {
 	g.activePanel = 0
 	g.selRow = 0
 	g.selCol = 0
+	g.editingPanelName = false
+	g.editPanelIndex = -1
 	// Attempt to load initial layout from `state.yml` non-blocking.
 	// LoadState schedules any CSV loads in the background.
 	if err := g.canvas.LoadState("state.yml"); err != nil {

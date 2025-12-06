@@ -14,6 +14,7 @@ type statePanel struct {
 	X        int    `yaml:"x"`
 	Y        int    `yaml:"y"`
 	Filename string `yaml:"file"`
+	Name     string `yaml:"name,omitempty"`
 }
 
 type stateFile struct {
@@ -114,7 +115,7 @@ func (c *Canvas) SaveState(statePath string) error {
 			return err
 		}
 
-		sf.Panels = append(sf.Panels, statePanel{X: p.X, Y: p.Y, Filename: p.Filename})
+		sf.Panels = append(sf.Panels, statePanel{X: p.X, Y: p.Y, Filename: p.Filename, Name: p.Name})
 	}
 
 	// write YAML
@@ -164,6 +165,7 @@ func (c *Canvas) LoadState(statePath string) error {
 		p := &c.panels[i]
 		p.X = sp.X
 		p.Y = sp.Y
+		p.Name = sp.Name
 		// Make sure the panel is empty/blank until CSV load completes.
 		p.Cells = make(map[string]string)
 		p.Rows = 5
@@ -209,7 +211,26 @@ func savePanelCSV(path string, p *Panel) error {
 	}
 	defer f.Close()
 	w := csv.NewWriter(f)
+	// Determine the last row that contains any non-empty data. We will
+	// write rows up to and including that index. This prevents saving
+	// trailing empty rows at the bottom of the CSV while preserving
+	// intermediate empty rows.
+	lastRow := -1
 	for r := 0; r < p.Rows; r++ {
+		for cidx := 0; cidx < p.Cols; cidx++ {
+			if p.GetCell(cidx, r) != "" {
+				lastRow = r
+				break
+			}
+		}
+	}
+
+	if lastRow == -1 {
+		// no data at all; write an empty file
+		return nil
+	}
+
+	for r := 0; r <= lastRow; r++ {
 		row := make([]string, p.Cols)
 		for cidx := 0; cidx < p.Cols; cidx++ {
 			row[cidx] = p.GetCell(cidx, r)

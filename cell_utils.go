@@ -15,7 +15,10 @@ func ColToLetters(n int) string {
 	s := ""
 	for n >= 0 {
 		rem := n % 26
-		s = string('A'+rem) + s
+		// convert to a rune explicitly before converting to string to
+		// avoid the common mistake of converting an integer to its
+		// corresponding rune and to silence `go vet` warnings.
+		s = string('A'+rune(rem)) + s
 		n = n/26 - 1
 	}
 	return s
