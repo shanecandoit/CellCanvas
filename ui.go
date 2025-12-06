@@ -114,7 +114,9 @@ func (ui *UI) Update(g *Game) {
 		}
 	}
 	// start editing when Enter is pressed (only when not already editing)
-	if !g.editing {
+	// We support both cell editing and panel-name editing, so only short-circuit
+	// when neither editing mode is active.
+	if !g.editing && !g.editingPanelName {
 		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
 			if g.activePanel >= 0 && g.activePanel < len(g.canvas.panels) {
 				g.editing = true
@@ -133,81 +135,150 @@ func (ui *UI) Update(g *Game) {
 		g.caretVisible = !g.caretVisible
 	}
 
-	// handle typed characters, inserting at cursor
+	// handle typed characters, inserting at cursor -- support both cell and panel-name editing
 	for _, r := range ebiten.InputChars() {
-		if r == '\b' {
-			if g.editCursor > 0 {
-				rs := []rune(g.editBuffer)
-				rs = append(rs[:g.editCursor-1], rs[g.editCursor:]...)
-				g.editBuffer = string(rs)
-				g.editCursor--
-				g.blinkCounter = 0
-				g.caretVisible = true
+		// choose which buffer/cursor to mutate
+		if g.editing {
+			if r == '\b' {
+				if g.editCursor > 0 {
+					rs := []rune(g.editBuffer)
+					rs = append(rs[:g.editCursor-1], rs[g.editCursor:]...)
+					g.editBuffer = string(rs)
+					g.editCursor--
+					g.blinkCounter = 0
+					g.caretVisible = true
+				}
+				continue
 			}
-		} else {
 			rs := []rune(g.editBuffer)
 			rs = append(rs[:g.editCursor], append([]rune{r}, rs[g.editCursor:]...)...)
 			g.editBuffer = string(rs)
 			g.editCursor++
 			g.blinkCounter = 0
 			g.caretVisible = true
+		} else if g.editingPanelName {
+			if r == '\b' {
+				if g.editPanelCursor > 0 {
+					rs := []rune(g.editPanelBuffer)
+					rs = append(rs[:g.editPanelCursor-1], rs[g.editPanelCursor:]...)
+					g.editPanelBuffer = string(rs)
+					g.editPanelCursor--
+					g.blinkCounter = 0
+					g.caretVisible = true
+				}
+				continue
+			}
+			rs := []rune(g.editPanelBuffer)
+			rs = append(rs[:g.editPanelCursor], append([]rune{r}, rs[g.editPanelCursor:]...)...)
+			g.editPanelBuffer = string(rs)
+			g.editPanelCursor++
+			g.blinkCounter = 0
+			g.caretVisible = true
 		}
 	}
 
 	// navigation and editing keys
+	// navigation and editing keys -- support both editing modes
 	if inpututil.IsKeyJustPressed(ebiten.KeyArrowLeft) {
-		if g.editCursor > 0 {
+		if g.editing && g.editCursor > 0 {
 			g.editCursor--
+			g.blinkCounter = 0
+			g.caretVisible = true
+		} else if g.editingPanelName && g.editPanelCursor > 0 {
+			g.editPanelCursor--
 			g.blinkCounter = 0
 			g.caretVisible = true
 		}
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyArrowRight) {
-		if g.editCursor < len([]rune(g.editBuffer)) {
+		if g.editing && g.editCursor < len([]rune(g.editBuffer)) {
 			g.editCursor++
+			g.blinkCounter = 0
+			g.caretVisible = true
+		} else if g.editingPanelName && g.editPanelCursor < len([]rune(g.editPanelBuffer)) {
+			g.editPanelCursor++
 			g.blinkCounter = 0
 			g.caretVisible = true
 		}
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) {
-		if g.editCursor > 0 {
+		if g.editing && g.editCursor > 0 {
 			rs := []rune(g.editBuffer)
 			rs = append(rs[:g.editCursor-1], rs[g.editCursor:]...)
 			g.editBuffer = string(rs)
 			g.editCursor--
 			g.blinkCounter = 0
 			g.caretVisible = true
-		}
-	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyDelete) {
-		rs := []rune(g.editBuffer)
-		if g.editCursor < len(rs) {
-			rs = append(rs[:g.editCursor], rs[g.editCursor+1:]...)
-			g.editBuffer = string(rs)
+		} else if g.editingPanelName && g.editPanelCursor > 0 {
+			rs := []rune(g.editPanelBuffer)
+			rs = append(rs[:g.editPanelCursor-1], rs[g.editPanelCursor:]...)
+			g.editPanelBuffer = string(rs)
+			g.editPanelCursor--
 			g.blinkCounter = 0
 			g.caretVisible = true
 		}
 	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyDelete) {
+		if g.editing {
+			rs := []rune(g.editBuffer)
+			if g.editCursor < len(rs) {
+				rs = append(rs[:g.editCursor], rs[g.editCursor+1:]...)
+				g.editBuffer = string(rs)
+				g.blinkCounter = 0
+				g.caretVisible = true
+			}
+		} else if g.editingPanelName {
+			rs := []rune(g.editPanelBuffer)
+			if g.editPanelCursor < len(rs) {
+				rs = append(rs[:g.editPanelCursor], rs[g.editPanelCursor+1:]...)
+				g.editPanelBuffer = string(rs)
+				g.blinkCounter = 0
+				g.caretVisible = true
+			}
+		}
+	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyHome) {
-		g.editCursor = 0
+		if g.editing {
+			g.editCursor = 0
+		} else if g.editingPanelName {
+			g.editPanelCursor = 0
+		}
 		g.blinkCounter = 0
 		g.caretVisible = true
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyEnd) {
-		g.editCursor = len([]rune(g.editBuffer))
+		if g.editing {
+			g.editCursor = len([]rune(g.editBuffer))
+		} else if g.editingPanelName {
+			g.editPanelCursor = len([]rune(g.editPanelBuffer))
+		}
 		g.blinkCounter = 0
 		g.caretVisible = true
 	}
 
-	// commit/cancel
+	// commit/cancel -- support both cell and panel-name editing
 	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
-		if g.activePanel >= 0 && g.activePanel < len(g.canvas.panels) {
-			g.canvas.panels[g.activePanel].SetCell(g.selCol, g.selRow, g.editBuffer)
+		if g.editing {
+			if g.activePanel >= 0 && g.activePanel < len(g.canvas.panels) {
+				g.canvas.panels[g.activePanel].SetCell(g.selCol, g.selRow, g.editBuffer)
+			}
+			g.editing = false
+		} else if g.editingPanelName {
+			if g.editPanelIndex >= 0 && g.editPanelIndex < len(g.canvas.panels) {
+				g.canvas.panels[g.editPanelIndex].Name = g.editPanelBuffer
+			}
+			g.editingPanelName = false
+			g.editPanelIndex = -1
 		}
-		g.editing = false
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
-		g.editing = false
+		if g.editing {
+			g.editing = false
+		}
+		if g.editingPanelName {
+			g.editingPanelName = false
+			g.editPanelIndex = -1
+		}
 	}
 }
 
@@ -229,6 +300,26 @@ func (ui *UI) OnCellClick(g *Game, panel, row, col int) {
 		ui.lastClickPanel = panel
 		ui.lastClickRow = row
 		ui.lastClickCol = col
+		ui.lastClickTime = now
+	}
+}
+
+// OnPanelNameClick handles clicks on the panel name button. A double-click
+// will begin editing the panel name (via Game's editingPanelName fields).
+func (ui *UI) OnPanelNameClick(g *Game, panel int) {
+	now := time.Now().UnixNano() / 1e6
+	if ui.lastClickPanel == panel && now-ui.lastClickTime <= ui.dblClickMs {
+		if panel >= 0 && panel < len(g.canvas.panels) {
+			g.editingPanelName = true
+			g.editPanelIndex = panel
+			g.editPanelBuffer = g.canvas.panels[panel].Name
+			g.editPanelCursor = len([]rune(g.editPanelBuffer))
+			g.blinkCounter = 0
+			g.caretVisible = true
+		}
+		ui.lastClickPanel = -1
+	} else {
+		ui.lastClickPanel = panel
 		ui.lastClickTime = now
 	}
 }

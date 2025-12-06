@@ -49,3 +49,30 @@ CellCanvas is a simple, spreadsheet-like desktop application written in Go using
 AGPL
 
 Enjoy exploring canvas-driven UIs with Ebiten!
+
+## Linux (Debian/Ubuntu) build dependencies
+
+If you're building on Debian/Ubuntu, you may need several development libraries installed to satisfy Ebiten's native dependencies (X11/GTK/OpenGL, fonts, etc.). If you see linker errors such as "cannot find -lXxf86vm" or "cannot find -lX11" during `go build`, installing the following packages will usually resolve them:
+
+```bash
+sudo apt update
+sudo apt install -y build-essential pkg-config \
+	libx11-dev libxrandr-dev libxxf86vm-dev libgtk-3-dev
+```
+
+Notes:
+- `build-essential` provides `gcc` and other build tools; `pkg-config` helps discover libs.
+- `libgl1-mesa-dev` or similar is required for OpenGL dependencies used by some drivers.
+- GTK (`libgtk-3-dev`, maybe others?) are necessary for some platforms and font rendering backends.
+- These commands were verified on Ubuntu/Debian variants; 
+- For other distributions, use the correct package manager (e.g., `dnf`/`yum` on Fedora/RedHat).
+
+After installing these packages, build with:
+
+```bash
+./build.sh
+# or
+go build
+```
+
+If you get other build error or linking errors, check your distribution's package names and install the appropriate `-dev` packages for the missing library (libname-dev). Make an issue maybe?
