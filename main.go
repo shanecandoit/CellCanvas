@@ -87,7 +87,7 @@ func (g *Game) Update() error {
 
 func (g *Game) Draw(screen *ebiten.Image) {
 	// dark background
-	screen.Fill(color.RGBA{0x12, 0x12, 0x14, 0xff})
+	screen.Fill(ColorBackground)
 
 	// draw canvas (panels)
 	g.canvas.Draw(screen, g)

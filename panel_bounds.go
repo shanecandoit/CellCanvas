@@ -1,14 +1,7 @@
 package main
 
 // Layout constants for panel drawing and hit testing
-const (
-	PanelPaddingX     = 4
-	PanelPaddingY     = 4
-	PanelHeaderHeight = 20
-	PanelBorderWidth  = 2
-	ResizeHandleSize  = 12
-	PanelInnerPadding = 6
-)
+// Layout constants are now in theme.go
 
 // PanelBounds consolidates the geometric layout of a Panel as rendered
 // on the screen (given camera offsets).

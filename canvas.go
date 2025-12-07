@@ -29,10 +29,7 @@ type Panel struct {
 const panelGap = PanelPaddingX
 
 // panel header center name button defaults
-const (
-	PanelNameButtonW = 96
-	PanelNameButtonH = 14
-)
+// panel header center name button defaults are now in theme.go
 
 // axisHysteresis prevents immediate axis switching; the other axis must have
 // a violation larger by this many pixels before we switch to it.
@@ -327,15 +324,15 @@ func (c *Canvas) Draw(screen *ebiten.Image, g *Game) {
 		baseY := float64(b.ContentY)
 
 		// panel background
-		ebitenutil.DrawRect(screen, float64(b.TotalX), float64(b.TotalY), float64(b.TotalW), float64(b.TotalH), color.RGBA{0x22, 0x22, 0x2a, 0xff})
+		ebitenutil.DrawRect(screen, float64(b.TotalX), float64(b.TotalY), float64(b.TotalW), float64(b.TotalH), ColorPanelBg)
 
 		// panel title
-		drawTextAt(screen, g.ui.face, fmt.Sprintf("Panel %d", pi+1), int(baseX)+PanelInnerPadding, int(baseY-PanelHeaderHeight+2), color.White)
+		drawTextAt(screen, g.ui.face, fmt.Sprintf("Panel %d", pi+1), int(baseX)+PanelInnerPadding, int(baseY-PanelHeaderHeight+2), ColorText)
 
 		// draw a blank clickable name button centered in the header (blank by design)
 		btnX := baseX + float64(b.ContentW)/2 - float64(PanelNameButtonW)/2
 		btnY := float64(baseY) - float64(PanelHeaderHeight) + float64((PanelHeaderHeight-PanelNameButtonH)/2)
-		ebitenutil.DrawRect(screen, btnX, btnY, float64(PanelNameButtonW), float64(PanelNameButtonH), color.RGBA{0x11, 0x11, 0x16, 0xff})
+		ebitenutil.DrawRect(screen, btnX, btnY, float64(PanelNameButtonW), float64(PanelNameButtonH), ColorPanelHeaderBtn)
 
 		// draw panel's alias/name inside the header button; when editing, draw live buffer
 		nameToShow := p.Name
@@ -348,7 +345,7 @@ func (c *Canvas) Draw(screen *ebiten.Image, g *Game) {
 			textW := int((bnd.Max.X - bnd.Min.X) >> 6)
 			// center horizontally within the button
 			tx := btnX + float64(PanelNameButtonW-textW)/2
-			drawTextAt(screen, g.ui.face, nameToShow, int(tx), int(btnY), color.White)
+			drawTextAt(screen, g.ui.face, nameToShow, int(tx), int(btnY), ColorText)
 
 			// draw blinking caret when editing the panel name
 			if g.editingPanelName && g.editPanelIndex == pi && g.caretVisible {
@@ -369,30 +366,30 @@ func (c *Canvas) Draw(screen *ebiten.Image, g *Game) {
 				caretH := ascent + descent
 				// center caret vertically inside the button
 				caretY := int(btnY) + (PanelNameButtonH-caretH)/2
-				ebitenutil.DrawRect(screen, float64(caretX), float64(caretY), 2, float64(caretH), color.White)
+				ebitenutil.DrawRect(screen, float64(caretX), float64(caretY), 2, float64(caretH), ColorText)
 			}
 		}
 
 		// draw border
 		// draw the 4 border edges using total bounds
-		ebitenutil.DrawRect(screen, float64(b.TotalX), float64(b.TotalY), float64(PanelBorderWidth), float64(b.TotalH), color.RGBA{0x44, 0x44, 0x50, 0xff})
-		ebitenutil.DrawRect(screen, float64(b.TotalX), float64(b.TotalY), float64(b.TotalW), float64(PanelBorderWidth), color.RGBA{0x44, 0x44, 0x50, 0xff})
-		ebitenutil.DrawRect(screen, float64(b.TotalX+b.TotalW-PanelBorderWidth), float64(b.TotalY), float64(PanelBorderWidth), float64(b.TotalH), color.RGBA{0x44, 0x44, 0x50, 0xff})
-		ebitenutil.DrawRect(screen, float64(b.TotalX), float64(b.TotalY+b.TotalH-PanelBorderWidth), float64(b.TotalW), float64(PanelBorderWidth), color.RGBA{0x44, 0x44, 0x50, 0xff})
+		ebitenutil.DrawRect(screen, float64(b.TotalX), float64(b.TotalY), float64(PanelBorderWidth), float64(b.TotalH), ColorPanelBorder)
+		ebitenutil.DrawRect(screen, float64(b.TotalX), float64(b.TotalY), float64(b.TotalW), float64(PanelBorderWidth), ColorPanelBorder)
+		ebitenutil.DrawRect(screen, float64(b.TotalX+b.TotalW-PanelBorderWidth), float64(b.TotalY), float64(PanelBorderWidth), float64(b.TotalH), ColorPanelBorder)
+		ebitenutil.DrawRect(screen, float64(b.TotalX), float64(b.TotalY+b.TotalH-PanelBorderWidth), float64(b.TotalW), float64(PanelBorderWidth), ColorPanelBorder)
 
 		// If panel isn't loaded yet, draw a loading placeholder and skip
 		// drawing cell content.
 		if !p.Loaded {
 			// placeholder: a darker rectangle and 'Loading...' title
-			ebitenutil.DrawRect(screen, float64(b.ContentX), float64(b.ContentY), float64(b.ContentW), float64(b.ContentH), color.RGBA{0x0f, 0x0f, 0x12, 0xff})
-			drawTextAt(screen, g.ui.face, "Loading...", int(baseX)+PanelInnerPadding, int(baseY)+PanelInnerPadding, color.White)
+			ebitenutil.DrawRect(screen, float64(b.ContentX), float64(b.ContentY), float64(b.ContentW), float64(b.ContentH), ColorPanelLoading)
+			drawTextAt(screen, g.ui.face, "Loading...", int(baseX)+PanelInnerPadding, int(baseY)+PanelInnerPadding, ColorText)
 		} else {
 			for r := 0; r < p.Rows; r++ {
 				for ccol := 0; ccol < p.Cols; ccol++ {
 					x := baseX + float64(ccol*p.CellW)
 					y := baseY + float64(r*p.CellH)
 					// cell bg (slightly lighter card)
-					ebitenutil.DrawRect(screen, x, y, float64(p.CellW-1), float64(p.CellH-1), color.RGBA{0x18, 0x18, 0x1c, 0xff})
+					ebitenutil.DrawRect(screen, x, y, float64(p.CellW-1), float64(p.CellH-1), ColorCellBg)
 					// cell text (light)
 					// if this is the active cell being edited, show the live edit buffer
 					key := CellRef(ccol, r)
@@ -403,7 +400,7 @@ func (c *Canvas) Draw(screen *ebiten.Image, g *Game) {
 					if g != nil && g.editing && g.activePanel == pi && r == g.selRow && ccol == g.selCol {
 						txt = g.editBuffer
 					}
-					drawTextAt(screen, g.ui.face, txt, int(x)+PanelInnerPadding, int(y)+PanelInnerPadding, color.White)
+					drawTextAt(screen, g.ui.face, txt, int(x)+PanelInnerPadding, int(y)+PanelInnerPadding, ColorText)
 				}
 			}
 		}
@@ -413,13 +410,13 @@ func (c *Canvas) Draw(screen *ebiten.Image, g *Game) {
 			sx := baseX + float64(g.selCol*p.CellW)
 			sy := baseY + float64(g.selRow*p.CellH)
 			// selection overlay
-			ebitenutil.DrawRect(screen, sx, sy, float64(p.CellW-1), float64(p.CellH-1), color.RGBA{0x66, 0x88, 0xff, 0x66})
+			ebitenutil.DrawRect(screen, sx, sy, float64(p.CellW-1), float64(p.CellH-1), ColorSelection)
 		}
 
 		// draw resize handle
 		rx := baseX + float64(p.Cols*p.CellW) - ResizeHandleSize
 		ry := baseY + float64(p.Rows*p.CellH) - ResizeHandleSize
-		ebitenutil.DrawRect(screen, rx, ry, float64(ResizeHandleSize), float64(ResizeHandleSize), color.RGBA{0x55, 0x55, 0x66, 0xff})
+		ebitenutil.DrawRect(screen, rx, ry, float64(ResizeHandleSize), float64(ResizeHandleSize), ColorResizeHandle)
 	}
 }
 

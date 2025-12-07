@@ -25,6 +25,9 @@ type UI struct {
 	dblClickMs     int64
 	// recent mouse click log (most-recent first)
 	clickLog []string
+	// double-click tracking for header name button
+	lastClickHeaderPanel int
+	lastClickHeaderTime  int64
 }
 
 func NewUI() *UI {
@@ -36,6 +39,8 @@ func NewUI() *UI {
 	ui.dblClickMs = 400
 
 	ui.clickLog = []string{}
+	ui.lastClickHeaderPanel = -1
+	ui.lastClickHeaderTime = 0
 
 	// Try to load local RobotoMono TTF from res/
 	b, err := os.ReadFile("res/Roboto-Regular.ttf")
@@ -114,7 +119,7 @@ func (ui *UI) Update(g *Game) {
 		}
 	}
 	// start editing when Enter is pressed (only when not already editing)
-	if !g.editing {
+	if !g.editing && !g.editingPanelName {
 		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
 			if g.activePanel >= 0 && g.activePanel < len(g.canvas.panels) {
 				g.editing = true
@@ -133,9 +138,89 @@ func (ui *UI) Update(g *Game) {
 		g.caretVisible = !g.caretVisible
 	}
 
-	// handle typed characters, inserting at cursor
+	// handle typed characters, inserting at cursor (for panel-name editing or cell editing)
 	for _, r := range ebiten.InputChars() {
 		if r == '\b' {
+			if g.editingPanelName {
+				if g.editPanelCursor > 0 {
+					rs := []rune(g.editPanelBuffer)
+					rs = append(rs[:g.editPanelCursor-1], rs[g.editPanelCursor:]...)
+					g.editPanelBuffer = string(rs)
+					g.editPanelCursor--
+					g.blinkCounter = 0
+					g.caretVisible = true
+				}
+			} else {
+				if g.editCursor > 0 {
+					rs := []rune(g.editBuffer)
+					rs = append(rs[:g.editCursor-1], rs[g.editCursor:]...)
+					g.editBuffer = string(rs)
+					g.editCursor--
+					g.blinkCounter = 0
+					g.caretVisible = true
+				}
+			}
+		} else {
+			if g.editingPanelName {
+				rs := []rune(g.editPanelBuffer)
+				rs = append(rs[:g.editPanelCursor], append([]rune{r}, rs[g.editPanelCursor:]...)...)
+				g.editPanelBuffer = string(rs)
+				g.editPanelCursor++
+				g.blinkCounter = 0
+				g.caretVisible = true
+			} else {
+				rs := []rune(g.editBuffer)
+				rs = append(rs[:g.editCursor], append([]rune{r}, rs[g.editCursor:]...)...)
+				g.editBuffer = string(rs)
+				g.editCursor++
+				g.blinkCounter = 0
+				g.caretVisible = true
+			}
+		}
+	}
+
+	// navigation and editing keys
+	if inpututil.IsKeyJustPressed(ebiten.KeyArrowLeft) {
+		if g.editingPanelName {
+			if g.editPanelCursor > 0 {
+				g.editPanelCursor--
+				g.blinkCounter = 0
+				g.caretVisible = true
+			}
+		} else {
+			if g.editCursor > 0 {
+				g.editCursor--
+				g.blinkCounter = 0
+				g.caretVisible = true
+			}
+		}
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyArrowRight) {
+		if g.editingPanelName {
+			if g.editPanelCursor < len([]rune(g.editPanelBuffer)) {
+				g.editPanelCursor++
+				g.blinkCounter = 0
+				g.caretVisible = true
+			}
+		} else {
+			if g.editCursor < len([]rune(g.editBuffer)) {
+				g.editCursor++
+				g.blinkCounter = 0
+				g.caretVisible = true
+			}
+		}
+	}
+	if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) {
+		if g.editingPanelName {
+			if g.editPanelCursor > 0 {
+				rs := []rune(g.editPanelBuffer)
+				rs = append(rs[:g.editPanelCursor-1], rs[g.editPanelCursor:]...)
+				g.editPanelBuffer = string(rs)
+				g.editPanelCursor--
+				g.blinkCounter = 0
+				g.caretVisible = true
+			}
+		} else {
 			if g.editCursor > 0 {
 				rs := []rune(g.editBuffer)
 				rs = append(rs[:g.editCursor-1], rs[g.editCursor:]...)
@@ -144,70 +229,71 @@ func (ui *UI) Update(g *Game) {
 				g.blinkCounter = 0
 				g.caretVisible = true
 			}
-		} else {
-			rs := []rune(g.editBuffer)
-			rs = append(rs[:g.editCursor], append([]rune{r}, rs[g.editCursor:]...)...)
-			g.editBuffer = string(rs)
-			g.editCursor++
-			g.blinkCounter = 0
-			g.caretVisible = true
-		}
-	}
-
-	// navigation and editing keys
-	if inpututil.IsKeyJustPressed(ebiten.KeyArrowLeft) {
-		if g.editCursor > 0 {
-			g.editCursor--
-			g.blinkCounter = 0
-			g.caretVisible = true
-		}
-	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyArrowRight) {
-		if g.editCursor < len([]rune(g.editBuffer)) {
-			g.editCursor++
-			g.blinkCounter = 0
-			g.caretVisible = true
-		}
-	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyBackspace) {
-		if g.editCursor > 0 {
-			rs := []rune(g.editBuffer)
-			rs = append(rs[:g.editCursor-1], rs[g.editCursor:]...)
-			g.editBuffer = string(rs)
-			g.editCursor--
-			g.blinkCounter = 0
-			g.caretVisible = true
 		}
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyDelete) {
-		rs := []rune(g.editBuffer)
-		if g.editCursor < len(rs) {
-			rs = append(rs[:g.editCursor], rs[g.editCursor+1:]...)
-			g.editBuffer = string(rs)
-			g.blinkCounter = 0
-			g.caretVisible = true
+		if g.editingPanelName {
+			rs := []rune(g.editPanelBuffer)
+			if g.editPanelCursor < len(rs) {
+				rs = append(rs[:g.editPanelCursor], rs[g.editPanelCursor+1:]...)
+				g.editPanelBuffer = string(rs)
+				g.blinkCounter = 0
+				g.caretVisible = true
+			}
+		} else {
+			rs := []rune(g.editBuffer)
+			if g.editCursor < len(rs) {
+				rs = append(rs[:g.editCursor], rs[g.editCursor+1:]...)
+				g.editBuffer = string(rs)
+				g.blinkCounter = 0
+				g.caretVisible = true
+			}
 		}
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyHome) {
-		g.editCursor = 0
+		if g.editingPanelName {
+			g.editPanelCursor = 0
+		} else {
+			g.editCursor = 0
+		}
 		g.blinkCounter = 0
 		g.caretVisible = true
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyEnd) {
-		g.editCursor = len([]rune(g.editBuffer))
+		if g.editingPanelName {
+			g.editPanelCursor = len([]rune(g.editPanelBuffer))
+		} else {
+			g.editCursor = len([]rune(g.editBuffer))
+		}
 		g.blinkCounter = 0
 		g.caretVisible = true
 	}
 
 	// commit/cancel
 	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
-		if g.activePanel >= 0 && g.activePanel < len(g.canvas.panels) {
-			g.canvas.panels[g.activePanel].SetCell(g.selCol, g.selRow, g.editBuffer)
+		if g.editingPanelName {
+			if g.editPanelIndex >= 0 && g.editPanelIndex < len(g.canvas.panels) {
+				oldName := g.canvas.panels[g.editPanelIndex].Name
+				g.canvas.panels[g.editPanelIndex].Name = g.editPanelBuffer
+				if ui != nil && oldName != g.canvas.panels[g.editPanelIndex].Name {
+					if g.canvas.panels[g.editPanelIndex].Name == "" {
+						ui.addClickLog(fmt.Sprintf("Panel %d name cleared", g.editPanelIndex+1))
+					} else {
+						ui.addClickLog(fmt.Sprintf("Panel %d named: %s", g.editPanelIndex+1, g.canvas.panels[g.editPanelIndex].Name))
+					}
+				}
+			}
+			g.editingPanelName = false
+		} else {
+			if g.activePanel >= 0 && g.activePanel < len(g.canvas.panels) {
+				g.canvas.panels[g.activePanel].SetCell(g.selCol, g.selRow, g.editBuffer)
+			}
+			g.editing = false
 		}
-		g.editing = false
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
 		g.editing = false
+		g.editingPanelName = false
 	}
 }
 
@@ -233,6 +319,28 @@ func (ui *UI) OnCellClick(g *Game, panel, row, col int) {
 	}
 }
 
+// OnPanelNameClick handles clicks on the header name button and detects double-clicks
+// to start editing the panel name.
+func (ui *UI) OnPanelNameClick(g *Game, panel int) {
+	now := time.Now().UnixNano() / 1e6
+	if ui.lastClickHeaderPanel == panel && now-ui.lastClickHeaderTime <= ui.dblClickMs {
+		// double-click: start editing panel name
+		if panel >= 0 && panel < len(g.canvas.panels) {
+			g.editingPanelName = true
+			g.editPanelIndex = panel
+			g.editPanelBuffer = g.canvas.panels[panel].Name
+			g.editPanelCursor = len([]rune(g.editPanelBuffer))
+			g.blinkCounter = 0
+			g.caretVisible = true
+		}
+		// reset last click to avoid immediate retrigger
+		ui.lastClickHeaderPanel = -1
+	} else {
+		ui.lastClickHeaderPanel = panel
+		ui.lastClickHeaderTime = now
+	}
+}
+
 // addClickLog prepends a timestamped entry to the click log and keeps it bounded.
 func (ui *UI) addClickLog(s string) {
 	ts := time.Now().Format("15:04:05.000")
@@ -249,48 +357,80 @@ func (ui *UI) Draw(screen *ebiten.Image, g *Game) {
 	// Use the actual logical screen height so the HUD sits at the bottom
 	// even when the window is resized.
 	screenH := screen.Bounds().Dy()
-	drawTextAt(screen, ui.face, "Right-drag to pan - Left-drag title to move - Drag corner to resize", 8, screenH-42, color.White)
-	drawTextAt(screen, ui.face, "Press Ctrl+S to Save - Press Ctrl+O to Open", 8, screenH-28, color.White)
-	drawTextAt(screen, ui.face, "Arrows to move - Enter to edit - Tab switch panel", 8, screenH-14, color.White)
+	drawTextAt(screen, ui.face, "Right-drag to pan - Left-drag title to move - Drag corner to resize", 8, screenH-42, ColorText)
+	drawTextAt(screen, ui.face, "Press Ctrl+S to Save - Press Ctrl+O to Open", 8, screenH-28, ColorText)
+	drawTextAt(screen, ui.face, "Arrows to move - Enter to edit - Tab switch panel", 8, screenH-14, ColorText)
 
-	if g.editing {
+	if g.editing { // only show top overlay when editing a cell; panel name edits render inline
 		// top text bar background
 		sw := screen.Bounds().Dx()
-		ebitenutil.DrawRect(screen, 0, 0, float64(sw), 34, color.RGBA{0x11, 0x11, 0x16, 0xff})
+		ebitenutil.DrawRect(screen, 0, 0, float64(sw), 34, ColorOverlayBg)
 		padding := 8
 
-		// build a label like: "Edit Panel0 Cell-A1 : "
-		label := fmt.Sprintf("Edit Panel%d Cell-%s%d : ", g.activePanel, ColToLetters(g.selCol), g.selRow+1)
+		// build a label like: "Edit Panel0 Cell-A1 : " or "Edit PanelX Name : "
+		label := ""
+		if g.editingPanelName {
+			label = fmt.Sprintf("Edit Panel%d Name : ", g.editPanelIndex)
+		} else {
+			label = fmt.Sprintf("Edit Panel%d Cell-%s%d : ", g.activePanel, ColToLetters(g.selCol), g.selRow+1)
+		}
 
 		// render the full bracketed string
-		full := label + "[" + g.editBuffer + "]"
-		drawTextAt(screen, ui.face, full, padding, 6, color.White)
+		full := label + "["
+		if g.editingPanelName {
+			full += g.editPanelBuffer
+		} else {
+			full += g.editBuffer
+		}
+		full += "]"
+		drawTextAt(screen, ui.face, full, padding, 6, ColorText)
 
 		// draw caret if visible (measured relative to the full label)
 		if g.caretVisible {
-			rs := []rune(g.editBuffer)
-			if g.editCursor < 0 {
-				g.editCursor = 0
+			if g.editingPanelName {
+				rs := []rune(g.editPanelBuffer)
+				if g.editPanelCursor < 0 {
+					g.editPanelCursor = 0
+				}
+				if g.editPanelCursor > len(rs) {
+					g.editPanelCursor = len(rs)
+				}
+				pre := label + "[" + string(rs[:g.editPanelCursor])
+				b, _ := font.BoundString(ui.face, pre)
+				caretX := int((b.Max.X - b.Min.X) >> 6)
+				ascent := ui.face.Metrics().Ascent.Round()
+				descent := ui.face.Metrics().Descent.Round()
+				caretH := ascent + descent
+				caretY := 6
+				ebitenutil.DrawRect(screen, float64(padding+caretX), float64(caretY), 2, float64(caretH), ColorText)
+			} else {
+				rs := []rune(g.editBuffer)
+				if g.editCursor < 0 {
+					g.editCursor = 0
+				}
+				if g.editCursor > len(rs) {
+					g.editCursor = len(rs)
+				}
+				pre := label + "[" + string(rs[:g.editCursor])
+				b, _ := font.BoundString(ui.face, pre)
+				caretX := int((b.Max.X - b.Min.X) >> 6)
+				ascent := ui.face.Metrics().Ascent.Round()
+				descent := ui.face.Metrics().Descent.Round()
+				caretH := ascent + descent
+				caretY := 6
+				ebitenutil.DrawRect(screen, float64(padding+caretX), float64(caretY), 2, float64(caretH), ColorText)
 			}
-			if g.editCursor > len(rs) {
-				g.editCursor = len(rs)
-			}
-			pre := label + "[" + string(rs[:g.editCursor])
-			b, _ := font.BoundString(ui.face, pre)
-			caretX := int((b.Max.X - b.Min.X) >> 6)
-			ascent := ui.face.Metrics().Ascent.Round()
-			descent := ui.face.Metrics().Descent.Round()
-			caretH := ascent + descent
-			caretY := 6
-			ebitenutil.DrawRect(screen, float64(padding+caretX), float64(caretY), 2, float64(caretH), color.White)
 		}
 
 		// position editing text over the selected cell (visual feedback)
-		if g.activePanel >= 0 && g.activePanel < len(g.canvas.panels) {
-			p := g.canvas.panels[g.activePanel]
-			sx := float64(p.X) + g.canvas.camX + float64(g.selCol*p.CellW)
-			sy := float64(p.Y) + g.canvas.camY + float64(g.selRow*p.CellH)
-			drawTextAt(screen, ui.face, g.editBuffer, int(sx)+PanelInnerPadding, int(sy)+PanelInnerPadding, color.White)
+		// Position editing text over the selected cell only for normal cell edits.
+		if !g.editingPanelName {
+			if g.activePanel >= 0 && g.activePanel < len(g.canvas.panels) {
+				p := g.canvas.panels[g.activePanel]
+				sx := float64(p.X) + g.canvas.camX + float64(g.selCol*p.CellW)
+				sy := float64(p.Y) + g.canvas.camY + float64(g.selRow*p.CellH)
+				drawTextAt(screen, ui.face, g.editBuffer, int(sx)+PanelInnerPadding, int(sy)+PanelInnerPadding, ColorText)
+			}
 		}
 	}
 
@@ -303,9 +443,9 @@ func (ui *UI) Draw(screen *ebiten.Image, g *Game) {
 		x := sw - boxW - 8
 		y := sh - boxH - 8
 		// background box
-		ebitenutil.DrawRect(screen, float64(x-8), float64(y-6), float64(boxW+16), float64(boxH+12), color.RGBA{0x0c, 0x0c, 0x0e, 0xee})
+		ebitenutil.DrawRect(screen, float64(x-8), float64(y-6), float64(boxW+16), float64(boxH+12), ColorLogBg)
 		for i, line := range ui.clickLog {
-			drawTextAt(screen, ui.face, line, x, y+i*14, color.RGBA{0xdd, 0xdd, 0xdd, 0xff})
+			drawTextAt(screen, ui.face, line, x, y+i*14, ColorTextDim)
 		}
 	}
 
