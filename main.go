@@ -1,7 +1,6 @@
 package main
 
 import (
-	"image/color"
 	"log"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -90,7 +89,21 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	screen.Fill(ColorBackground)
 
 	// draw canvas (panels)
-	g.canvas.Draw(screen, g)
+	state := CanvasDrawState{
+		Face:             g.ui.face,
+		ActivePanel:      g.activePanel,
+		SelRow:           g.selRow,
+		SelCol:           g.selCol,
+		Editing:          g.editing,
+		EditBuffer:       g.editBuffer,
+		EditingPanelName: g.editingPanelName,
+		EditPanelIndex:   g.editPanelIndex,
+		EditPanelBuffer:  g.editPanelBuffer,
+		CaretVisible:     g.caretVisible,
+		EditCursor:       g.editCursor,
+		EditPanelCursor:  g.editPanelCursor,
+	}
+	g.canvas.Draw(screen, state)
 
 	// draw UI (HUD, editing overlays)
 	g.ui.Draw(screen, g)

@@ -48,6 +48,22 @@ type Canvas struct {
 	saveManager *SaveManager
 }
 
+// CanvasDrawState encapsulates all external state required to render the canvas.
+// This decouples the Canvas.Draw method from the monolithic Game struct.
+type CanvasDrawState struct {
+	Face             font.Face
+	ActivePanel      int
+	SelRow, SelCol   int
+	Editing          bool
+	EditBuffer       string
+	EditingPanelName bool
+	EditPanelIndex   int
+	EditPanelBuffer  string
+	CaretVisible     bool
+	EditCursor       int
+	EditPanelCursor  int
+}
+
 func NewCanvas() *Canvas {
 	c := &Canvas{movingPanel: -1, resizingPanel: -1}
 	// Start with no sample/demo panels by default. Panels will be created
@@ -84,7 +100,11 @@ func (c *Canvas) Update(g *Game) {
 	// Process background loads completed by SaveManager (keeps canvas free
 	// of channel handling).
 	if c.saveManager != nil {
-		c.saveManager.ApplyPending(c, g)
+		c.saveManager.ApplyPending(c, func(msg string) {
+			if g.ui != nil {
+				g.ui.addClickLog(msg)
+			}
+		})
 	}
 	mx, my := ebiten.CursorPosition()
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
@@ -317,7 +337,7 @@ func max(a, b int) int {
 }
 
 // Draw renders the panels; selection overlay is drawn here but editing text is handled by UI
-func (c *Canvas) Draw(screen *ebiten.Image, g *Game) {
+func (c *Canvas) Draw(screen *ebiten.Image, state CanvasDrawState) {
 	for pi, p := range c.panels {
 		b := p.GetBounds(c.camX, c.camY)
 		baseX := float64(b.ContentX)
@@ -327,7 +347,7 @@ func (c *Canvas) Draw(screen *ebiten.Image, g *Game) {
 		ebitenutil.DrawRect(screen, float64(b.TotalX), float64(b.TotalY), float64(b.TotalW), float64(b.TotalH), ColorPanelBg)
 
 		// panel title
-		drawTextAt(screen, g.ui.face, fmt.Sprintf("Panel %d", pi+1), int(baseX)+PanelInnerPadding, int(baseY-PanelHeaderHeight+2), ColorText)
+		drawTextAt(screen, state.Face, fmt.Sprintf("Panel %d", pi+1), int(baseX)+PanelInnerPadding, int(baseY-PanelHeaderHeight+2), ColorText)
 
 		// draw a blank clickable name button centered in the header (blank by design)
 		btnX := baseX + float64(b.ContentW)/2 - float64(PanelNameButtonW)/2
@@ -337,32 +357,32 @@ func (c *Canvas) Draw(screen *ebiten.Image, g *Game) {
 		// draw panel's alias/name inside the header button; when editing, draw live buffer
 		nameToShow := p.Name
 		// Choose the game edit buffer if editing and this is the edit panel
-		if g != nil && g.editingPanelName && g.editPanelIndex == pi {
-			nameToShow = g.editPanelBuffer
+		if state.EditingPanelName && state.EditPanelIndex == pi {
+			nameToShow = state.EditPanelBuffer
 		}
-		if nameToShow != "" && g != nil && g.ui != nil && g.ui.face != nil {
-			bnd, _ := font.BoundString(g.ui.face, nameToShow)
+		if nameToShow != "" && state.Face != nil {
+			bnd, _ := font.BoundString(state.Face, nameToShow)
 			textW := int((bnd.Max.X - bnd.Min.X) >> 6)
 			// center horizontally within the button
 			tx := btnX + float64(PanelNameButtonW-textW)/2
-			drawTextAt(screen, g.ui.face, nameToShow, int(tx), int(btnY), ColorText)
+			drawTextAt(screen, state.Face, nameToShow, int(tx), int(btnY), ColorText)
 
 			// draw blinking caret when editing the panel name
-			if g.editingPanelName && g.editPanelIndex == pi && g.caretVisible {
+			if state.EditingPanelName && state.EditPanelIndex == pi && state.CaretVisible {
 				// compute pre-caret width
-				rs := []rune(g.editPanelBuffer)
-				if g.editPanelCursor < 0 {
-					g.editPanelCursor = 0
+				rs := []rune(state.EditPanelBuffer)
+				if state.EditPanelCursor < 0 {
+					state.EditPanelCursor = 0
 				}
-				if g.editPanelCursor > len(rs) {
-					g.editPanelCursor = len(rs)
+				if state.EditPanelCursor > len(rs) {
+					state.EditPanelCursor = len(rs)
 				}
-				pre := string(rs[:g.editPanelCursor])
-				pb, _ := font.BoundString(g.ui.face, pre)
+				pre := string(rs[:state.EditPanelCursor])
+				pb, _ := font.BoundString(state.Face, pre)
 				preW := int((pb.Max.X - pb.Min.X) >> 6)
 				caretX := tx + float64(preW)
-				ascent := g.ui.face.Metrics().Ascent.Round()
-				descent := g.ui.face.Metrics().Descent.Round()
+				ascent := state.Face.Metrics().Ascent.Round()
+				descent := state.Face.Metrics().Descent.Round()
 				caretH := ascent + descent
 				// center caret vertically inside the button
 				caretY := int(btnY) + (PanelNameButtonH-caretH)/2
@@ -382,7 +402,7 @@ func (c *Canvas) Draw(screen *ebiten.Image, g *Game) {
 		if !p.Loaded {
 			// placeholder: a darker rectangle and 'Loading...' title
 			ebitenutil.DrawRect(screen, float64(b.ContentX), float64(b.ContentY), float64(b.ContentW), float64(b.ContentH), ColorPanelLoading)
-			drawTextAt(screen, g.ui.face, "Loading...", int(baseX)+PanelInnerPadding, int(baseY)+PanelInnerPadding, ColorText)
+			drawTextAt(screen, state.Face, "Loading...", int(baseX)+PanelInnerPadding, int(baseY)+PanelInnerPadding, ColorText)
 		} else {
 			for r := 0; r < p.Rows; r++ {
 				for ccol := 0; ccol < p.Cols; ccol++ {
@@ -397,18 +417,18 @@ func (c *Canvas) Draw(screen *ebiten.Image, g *Game) {
 					if v, ok := p.Cells[key]; ok {
 						txt = v
 					}
-					if g != nil && g.editing && g.activePanel == pi && r == g.selRow && ccol == g.selCol {
-						txt = g.editBuffer
+					if state.Editing && state.ActivePanel == pi && r == state.SelRow && ccol == state.SelCol {
+						txt = state.EditBuffer
 					}
-					drawTextAt(screen, g.ui.face, txt, int(x)+PanelInnerPadding, int(y)+PanelInnerPadding, ColorText)
+					drawTextAt(screen, state.Face, txt, int(x)+PanelInnerPadding, int(y)+PanelInnerPadding, ColorText)
 				}
 			}
 		}
 
 		// draw selection for active panel
-		if pi == g.activePanel {
-			sx := baseX + float64(g.selCol*p.CellW)
-			sy := baseY + float64(g.selRow*p.CellH)
+		if pi == state.ActivePanel {
+			sx := baseX + float64(state.SelCol*p.CellW)
+			sy := baseY + float64(state.SelRow*p.CellH)
 			// selection overlay
 			ebitenutil.DrawRect(screen, sx, sy, float64(p.CellW-1), float64(p.CellH-1), ColorSelection)
 		}

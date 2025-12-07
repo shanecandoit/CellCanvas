@@ -57,8 +57,8 @@ func (sm *SaveManager) ScheduleLoad(idx int, path string) {
 }
 
 // ApplyPending consumes any completed loads and applies them into the
-// provided canvas. It will also optionally log failures via the game's UI.
-func (sm *SaveManager) ApplyPending(c *Canvas, g *Game) {
+// provided canvas. It will also optionally log failures via the provided log function.
+func (sm *SaveManager) ApplyPending(c *Canvas, logError func(string)) {
 	if sm == nil || sm.loadCh == nil {
 		return
 	}
@@ -81,8 +81,8 @@ func (sm *SaveManager) ApplyPending(c *Canvas, g *Game) {
 					// keep panel as not loaded (placeholder)
 					c.panels[r.idx].Loaded = false
 				}
-				if g != nil && g.ui != nil {
-					g.ui.addClickLog(fmt.Sprintf("failed to background load %s: %v", r.filename, r.err))
+				if logError != nil {
+					logError(fmt.Sprintf("failed to background load %s: %v", r.filename, r.err))
 				}
 			}
 		default:

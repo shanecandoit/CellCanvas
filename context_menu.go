@@ -1,8 +1,6 @@
 package main
 
 import (
-	"image/color"
-
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
@@ -129,23 +127,23 @@ func (cm *ContextMenu) Draw(screen *ebiten.Image, face font.Face) {
 	bgY := float64(y - PanelPaddingY)
 	bgW := float64(w + PanelPaddingX*2)
 	bgH := float64(itemH*len(cm.items) + PanelPaddingY*2)
-	ebitenutil.DrawRect(screen, bgX, bgY, bgW, bgH, color.RGBA{0x10, 0x10, 0x12, 0xff})
+	ebitenutil.DrawRect(screen, bgX, bgY, bgW, bgH, ColorMenuBg)
 	// border
-	ebitenutil.DrawRect(screen, bgX, bgY, bgW, 2, color.RGBA{0x44, 0x44, 0x50, 0xff})
-	ebitenutil.DrawRect(screen, bgX, bgY+bgH-2, bgW, 2, color.RGBA{0x44, 0x44, 0x50, 0xff})
-	ebitenutil.DrawRect(screen, bgX, bgY, 2, bgH, color.RGBA{0x44, 0x44, 0x50, 0xff})
-	ebitenutil.DrawRect(screen, bgX+bgW-2, bgY, 2, bgH, color.RGBA{0x44, 0x44, 0x50, 0xff})
+	ebitenutil.DrawRect(screen, bgX, bgY, bgW, 2, ColorMenuBorder)
+	ebitenutil.DrawRect(screen, bgX, bgY+bgH-2, bgW, 2, ColorMenuBorder)
+	ebitenutil.DrawRect(screen, bgX, bgY, 2, bgH, ColorMenuBorder)
+	ebitenutil.DrawRect(screen, bgX+bgW-2, bgY, 2, bgH, ColorMenuBorder)
 
 	for i, it := range cm.items {
 		iy := y + i*itemH
 		// highlight on hover
 		if cm.selected == i {
-			ebitenutil.DrawRect(screen, float64(x), float64(iy), float64(w), float64(itemH), color.RGBA{0x33, 0x55, 0xff, 0xff})
+			ebitenutil.DrawRect(screen, float64(x), float64(iy), float64(w), float64(itemH), ColorMenuHighlight)
 			// draw text in white
-			drawTextAt(screen, face, it, x+PanelInnerPadding+2, iy+PanelInnerPadding, color.White)
+			drawTextAt(screen, face, it, x+PanelInnerPadding+2, iy+PanelInnerPadding, ColorText)
 		} else {
 			// normal background (transparent) and text
-			drawTextAt(screen, face, it, x+PanelInnerPadding+2, iy+PanelInnerPadding, color.White)
+			drawTextAt(screen, face, it, x+PanelInnerPadding+2, iy+PanelInnerPadding, ColorText)
 		}
 	}
 }
