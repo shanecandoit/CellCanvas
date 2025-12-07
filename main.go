@@ -68,9 +68,10 @@ func abs(a int) int {
 func (g *Game) Update() error {
 	// input handling
 	g.input.HandlePanInput(g)
+	g.input.HandleCanvasInteraction(g)
 
 	// delegate panel mouse interactions to canvas (it will update selection on Game)
-	g.canvas.Update(g)
+	g.canvas.Update(g, g.input.GetLockedPanels())
 
 	g.input.HandleContextMenuInput(g)
 
