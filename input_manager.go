@@ -329,12 +329,14 @@ func (im *InputManager) HandleCanvasInteraction(g *Game) {
 				col := cx / p.CellW
 				row := cy / p.CellH
 				if row >= 0 && row < p.Rows && col >= 0 && col < p.Cols {
-					g.selRow = row
-					g.selCol = col
-					// notify UI about the click so it can decide double-click
+					// notify UI about the click BEFORE updating selection
+					// so OnCellClick can commit edits to the OLD cell position
 					if g.ui != nil {
 						g.ui.OnCellClick(g, i, row, col)
 					}
+					// NOW update the selection to the new cell
+					g.selRow = row
+					g.selCol = col
 				}
 				break
 			}

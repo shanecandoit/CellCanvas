@@ -10,7 +10,7 @@ var (
 	ColorPanelBorder    = color.RGBA{0x44, 0x44, 0x50, 0xff} // Panel border
 	ColorPanelLoading   = color.RGBA{0x0f, 0x0f, 0x12, 0xff} // Loading placeholder background
 	ColorCellBg         = color.RGBA{0x18, 0x18, 0x1c, 0xff} // Cell background
-	ColorSelection      = color.RGBA{0x66, 0x88, 0xff, 0x66} // Selection overlay (transparent)
+	ColorSelection      = color.RGBA{0x66, 0x88, 0xff, 0xff} // Selection border (opaque)
 	ColorResizeHandle   = color.RGBA{0x55, 0x55, 0x66, 0xff} // Resize handle
 	ColorText           = color.White                        // Standard text
 	ColorTextDim        = color.RGBA{0xdd, 0xdd, 0xdd, 0xff} // Dimmed text (logs)

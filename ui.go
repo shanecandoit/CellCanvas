@@ -311,7 +311,17 @@ func (ui *UI) resetCaret(g *Game) {
 }
 
 // OnCellClick handles click events on a cell and detects double-clicks to begin editing.
+// Single-click commits any active edits and selects the cell.
+// Double-click starts editing the cell.
 func (ui *UI) OnCellClick(g *Game, panel, row, col int) {
+	// First, commit any active cell edit
+	if g.editing && !g.editingPanelName {
+		if g.activePanel >= 0 && g.activePanel < len(g.canvas.panels) {
+			g.canvas.panels[g.activePanel].SetCell(g.selCol, g.selRow, g.editBuffer)
+		}
+		g.editing = false
+	}
+
 	now := time.Now().UnixNano() / 1e6
 	if ui.lastClickPanel == panel && ui.lastClickRow == row && ui.lastClickCol == col && now-ui.lastClickTime <= ui.dblClickMs {
 		// double-click: start editing
@@ -325,6 +335,7 @@ func (ui *UI) OnCellClick(g *Game, panel, row, col int) {
 		// reset last click to avoid immediate retrigger
 		ui.lastClickPanel = -1
 	} else {
+		// single-click: just update selection (edits already committed above)
 		ui.lastClickPanel = panel
 		ui.lastClickRow = row
 		ui.lastClickCol = col

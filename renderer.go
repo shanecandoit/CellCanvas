@@ -153,7 +153,19 @@ func (r *Renderer) drawPanelSelection(screen *ebiten.Image, p *Panel, b PanelBou
 		baseY := float64(b.ContentY)
 		sx := baseX + float64(state.SelCol*p.CellW)
 		sy := baseY + float64(state.SelRow*p.CellH)
-		ebitenutil.DrawRect(screen, sx, sy, float64(p.CellW-1), float64(p.CellH-1), ColorSelection)
+		cellW := float64(p.CellW - 1)
+		cellH := float64(p.CellH - 1)
+		borderWidth := 2.0
+
+		// Draw blue border instead of filled rectangle
+		// Top border
+		ebitenutil.DrawRect(screen, sx, sy, cellW, borderWidth, ColorSelection)
+		// Bottom border
+		ebitenutil.DrawRect(screen, sx, sy+cellH-borderWidth, cellW, borderWidth, ColorSelection)
+		// Left border
+		ebitenutil.DrawRect(screen, sx, sy, borderWidth, cellH, ColorSelection)
+		// Right border
+		ebitenutil.DrawRect(screen, sx+cellW-borderWidth, sy, borderWidth, cellH, ColorSelection)
 	}
 }
 
