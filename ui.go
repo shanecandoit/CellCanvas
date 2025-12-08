@@ -298,7 +298,9 @@ func (ui *UI) handleCommitCancel(g *Game) {
 			g.editing = false
 		}
 	}
-	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) {
+	// Only cancel editing with ESC if context menu is not visible
+	// (context menu handles ESC first to close itself)
+	if inpututil.IsKeyJustPressed(ebiten.KeyEscape) && !g.contextMenu.visible {
 		g.editing = false
 		g.editingPanelName = false
 	}
