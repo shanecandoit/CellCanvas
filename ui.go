@@ -66,7 +66,31 @@ func NewUI() *UI {
 
 // Update handles editing input, caret blinking, and commit/cancel while editing.
 func (ui *UI) Update(g *Game) {
-	// Log mouse clicks (left and right) with panel/cell when detectable.
+	ui.handleClickLogging(g)
+	ui.handleShortcuts(g)
+
+	// Early return if not editing
+	if !g.editing && !g.editingPanelName {
+		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
+			if g.activePanel >= 0 && g.activePanel < len(g.canvas.panels) {
+				g.editing = true
+				g.editBuffer = g.canvas.panels[g.activePanel].GetCell(g.selCol, g.selRow)
+				g.editCursor = len([]rune(g.editBuffer))
+				g.blinkCounter = 0
+				g.caretVisible = true
+			}
+		}
+		return
+	}
+
+	ui.handleCaretBlink(g)
+	ui.handleTextInput(g)
+	ui.handleEditingNavigation(g)
+	ui.handleCommitCancel(g)
+}
+
+// handleClickLogging logs mouse clicks with panel/cell information
+func (ui *UI) handleClickLogging(g *Game) {
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) || inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonRight) {
 		btn := "L"
 		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonRight) {
@@ -98,7 +122,10 @@ func (ui *UI) Update(g *Game) {
 			ui.addClickLog(fmt.Sprintf("%s click @ %d,%d  (no panel)", btn, mx, my))
 		}
 	}
-	// global shortcuts: Save (Ctrl+S) and Open (Ctrl+O)
+}
+
+// handleShortcuts processes global keyboard shortcuts (Ctrl+S, Ctrl+O)
+func (ui *UI) handleShortcuts(g *Game) {
 	ctrlPressed := ebiten.IsKeyPressed(ebiten.KeyControlLeft) || ebiten.IsKeyPressed(ebiten.KeyControlRight)
 	if ctrlPressed && inpututil.IsKeyJustPressed(ebiten.KeyS) {
 		// default state file
@@ -117,27 +144,18 @@ func (ui *UI) Update(g *Game) {
 			log.Printf("Loaded from %s", statePath)
 		}
 	}
-	// start editing when Enter is pressed (only when not already editing)
-	if !g.editing && !g.editingPanelName {
-		if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
-			if g.activePanel >= 0 && g.activePanel < len(g.canvas.panels) {
-				g.editing = true
-				g.editBuffer = g.canvas.panels[g.activePanel].GetCell(g.selCol, g.selRow)
-				g.editCursor = len([]rune(g.editBuffer))
-				g.blinkCounter = 0
-				g.caretVisible = true
-			}
-		}
-		return
-	}
+}
 
-	// blink caret timer
+// handleCaretBlink updates the caret blink timer
+func (ui *UI) handleCaretBlink(g *Game) {
 	g.blinkCounter++
 	if g.blinkCounter%30 == 0 {
 		g.caretVisible = !g.caretVisible
 	}
+}
 
-	// handle typed characters, inserting at cursor (for panel-name editing or cell editing)
+// handleTextInput processes typed characters and inserts them at cursor position
+func (ui *UI) handleTextInput(g *Game) {
 	for _, r := range ebiten.InputChars() {
 		if r == '\b' {
 			if g.editingPanelName {
@@ -146,8 +164,7 @@ func (ui *UI) Update(g *Game) {
 					rs = append(rs[:g.editPanelCursor-1], rs[g.editPanelCursor:]...)
 					g.editPanelBuffer = string(rs)
 					g.editPanelCursor--
-					g.blinkCounter = 0
-					g.caretVisible = true
+					ui.resetCaret(g)
 				}
 			} else {
 				if g.editCursor > 0 {
@@ -155,8 +172,7 @@ func (ui *UI) Update(g *Game) {
 					rs = append(rs[:g.editCursor-1], rs[g.editCursor:]...)
 					g.editBuffer = string(rs)
 					g.editCursor--
-					g.blinkCounter = 0
-					g.caretVisible = true
+					ui.resetCaret(g)
 				}
 			}
 		} else {
@@ -165,32 +181,30 @@ func (ui *UI) Update(g *Game) {
 				rs = append(rs[:g.editPanelCursor], append([]rune{r}, rs[g.editPanelCursor:]...)...)
 				g.editPanelBuffer = string(rs)
 				g.editPanelCursor++
-				g.blinkCounter = 0
-				g.caretVisible = true
+				ui.resetCaret(g)
 			} else {
 				rs := []rune(g.editBuffer)
 				rs = append(rs[:g.editCursor], append([]rune{r}, rs[g.editCursor:]...)...)
 				g.editBuffer = string(rs)
 				g.editCursor++
-				g.blinkCounter = 0
-				g.caretVisible = true
+				ui.resetCaret(g)
 			}
 		}
 	}
+}
 
-	// navigation and editing keys
+// handleEditingNavigation processes arrow keys, backspace, delete, home, end
+func (ui *UI) handleEditingNavigation(g *Game) {
 	if inpututil.IsKeyJustPressed(ebiten.KeyArrowLeft) {
 		if g.editingPanelName {
 			if g.editPanelCursor > 0 {
 				g.editPanelCursor--
-				g.blinkCounter = 0
-				g.caretVisible = true
+				ui.resetCaret(g)
 			}
 		} else {
 			if g.editCursor > 0 {
 				g.editCursor--
-				g.blinkCounter = 0
-				g.caretVisible = true
+				ui.resetCaret(g)
 			}
 		}
 	}
@@ -198,14 +212,12 @@ func (ui *UI) Update(g *Game) {
 		if g.editingPanelName {
 			if g.editPanelCursor < len([]rune(g.editPanelBuffer)) {
 				g.editPanelCursor++
-				g.blinkCounter = 0
-				g.caretVisible = true
+				ui.resetCaret(g)
 			}
 		} else {
 			if g.editCursor < len([]rune(g.editBuffer)) {
 				g.editCursor++
-				g.blinkCounter = 0
-				g.caretVisible = true
+				ui.resetCaret(g)
 			}
 		}
 	}
@@ -216,8 +228,7 @@ func (ui *UI) Update(g *Game) {
 				rs = append(rs[:g.editPanelCursor-1], rs[g.editPanelCursor:]...)
 				g.editPanelBuffer = string(rs)
 				g.editPanelCursor--
-				g.blinkCounter = 0
-				g.caretVisible = true
+				ui.resetCaret(g)
 			}
 		} else {
 			if g.editCursor > 0 {
@@ -225,8 +236,7 @@ func (ui *UI) Update(g *Game) {
 				rs = append(rs[:g.editCursor-1], rs[g.editCursor:]...)
 				g.editBuffer = string(rs)
 				g.editCursor--
-				g.blinkCounter = 0
-				g.caretVisible = true
+				ui.resetCaret(g)
 			}
 		}
 	}
@@ -236,16 +246,14 @@ func (ui *UI) Update(g *Game) {
 			if g.editPanelCursor < len(rs) {
 				rs = append(rs[:g.editPanelCursor], rs[g.editPanelCursor+1:]...)
 				g.editPanelBuffer = string(rs)
-				g.blinkCounter = 0
-				g.caretVisible = true
+				ui.resetCaret(g)
 			}
 		} else {
 			rs := []rune(g.editBuffer)
 			if g.editCursor < len(rs) {
 				rs = append(rs[:g.editCursor], rs[g.editCursor+1:]...)
 				g.editBuffer = string(rs)
-				g.blinkCounter = 0
-				g.caretVisible = true
+				ui.resetCaret(g)
 			}
 		}
 	}
@@ -255,8 +263,7 @@ func (ui *UI) Update(g *Game) {
 		} else {
 			g.editCursor = 0
 		}
-		g.blinkCounter = 0
-		g.caretVisible = true
+		ui.resetCaret(g)
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyEnd) {
 		if g.editingPanelName {
@@ -264,11 +271,12 @@ func (ui *UI) Update(g *Game) {
 		} else {
 			g.editCursor = len([]rune(g.editBuffer))
 		}
-		g.blinkCounter = 0
-		g.caretVisible = true
+		ui.resetCaret(g)
 	}
+}
 
-	// commit/cancel
+// handleCommitCancel processes Enter and Escape keys to commit or cancel editing
+func (ui *UI) handleCommitCancel(g *Game) {
 	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
 		if g.editingPanelName {
 			if g.editPanelIndex >= 0 && g.editPanelIndex < len(g.canvas.panels) {
@@ -294,6 +302,12 @@ func (ui *UI) Update(g *Game) {
 		g.editing = false
 		g.editingPanelName = false
 	}
+}
+
+// resetCaret resets the caret blink timer and makes it visible
+func (ui *UI) resetCaret(g *Game) {
+	g.blinkCounter = 0
+	g.caretVisible = true
 }
 
 // OnCellClick handles click events on a cell and detects double-clicks to begin editing.

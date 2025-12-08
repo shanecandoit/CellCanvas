@@ -63,31 +63,52 @@ func (r *Renderer) drawPanelHeader(screen *ebiten.Image, p *Panel, b PanelBounds
 	if state.EditingPanelName && state.EditPanelIndex == pi {
 		nameToShow = state.EditPanelBuffer
 	}
+
+	// Draw text if present
+	tx := btnX + float64(PanelNameButtonW)/2 // default center position
 	if nameToShow != "" && state.Face != nil {
 		bnd, _ := font.BoundString(state.Face, nameToShow)
 		textW := int((bnd.Max.X - bnd.Min.X) >> 6)
-		tx := btnX + float64(PanelNameButtonW-textW)/2
+		tx = btnX + float64(PanelNameButtonW-textW)/2
 		drawTextAt(screen, state.Face, nameToShow, int(tx), int(btnY), ColorText)
+	}
 
-		// draw blinking caret
-		if state.EditingPanelName && state.EditPanelIndex == pi && state.CaretVisible {
-			rs := []rune(state.EditPanelBuffer)
-			if state.EditPanelCursor < 0 {
-				state.EditPanelCursor = 0
-			}
-			if state.EditPanelCursor > len(rs) {
-				state.EditPanelCursor = len(rs)
-			}
-			pre := string(rs[:state.EditPanelCursor])
-			pb, _ := font.BoundString(state.Face, pre)
-			preW := int((pb.Max.X - pb.Min.X) >> 6)
-			caretX := tx + float64(preW)
-			ascent := state.Face.Metrics().Ascent.Round()
-			descent := state.Face.Metrics().Descent.Round()
-			caretH := ascent + descent
-			caretY := int(btnY) + (PanelNameButtonH-caretH)/2
-			ebitenutil.DrawRect(screen, float64(caretX), float64(caretY), 2, float64(caretH), ColorText)
+	// draw blinking caret when editing (even if name is empty)
+	if state.EditingPanelName && state.EditPanelIndex == pi && state.CaretVisible {
+		rs := []rune(state.EditPanelBuffer)
+		if state.EditPanelCursor < 0 {
+			state.EditPanelCursor = 0
 		}
+		if state.EditPanelCursor > len(rs) {
+			state.EditPanelCursor = len(rs)
+		}
+
+		// Calculate caret position
+		var caretX float64
+		if len(rs) == 0 {
+			// Empty name: center the caret
+			caretX = btnX + float64(PanelNameButtonW)/2
+		} else {
+			// Calculate position based on text before cursor
+			pre := string(rs[:state.EditPanelCursor])
+			if state.Face != nil {
+				bnd, _ := font.BoundString(state.Face, nameToShow)
+				textW := int((bnd.Max.X - bnd.Min.X) >> 6)
+				tx = btnX + float64(PanelNameButtonW-textW)/2
+
+				pb, _ := font.BoundString(state.Face, pre)
+				preW := int((pb.Max.X - pb.Min.X) >> 6)
+				caretX = tx + float64(preW)
+			} else {
+				caretX = btnX + float64(PanelNameButtonW)/2
+			}
+		}
+
+		ascent := state.Face.Metrics().Ascent.Round()
+		descent := state.Face.Metrics().Descent.Round()
+		caretH := ascent + descent
+		caretY := int(btnY) + (PanelNameButtonH-caretH)/2
+		ebitenutil.DrawRect(screen, float64(caretX), float64(caretY), 2, float64(caretH), ColorText)
 	}
 }
 
