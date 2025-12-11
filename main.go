@@ -19,24 +19,6 @@ type Game struct {
 
 	input       *InputManager
 	contextMenu *ContextMenu
-
-	// selection
-	activePanel    int
-	selRow, selCol int
-
-	// editing
-	editing      bool
-	editBuffer   string
-	editCursor   int
-	blinkCounter int
-	caretVisible bool
-	// panel name editing
-	editingPanelName bool
-	editPanelBuffer  string
-	editPanelCursor  int
-	editPanelIndex   int
-
-	// context menu (now managed by ContextMenu)
 }
 
 func NewGame() *Game {
@@ -45,11 +27,7 @@ func NewGame() *Game {
 	g.ui = NewUI()
 	g.input = NewInputManager()
 	g.contextMenu = NewContextMenu()
-	g.activePanel = 0
-	g.selRow = 0
-	g.selCol = 0
-	g.editingPanelName = false
-	g.editPanelIndex = -1
+	// selection and editing state moved into InputManager
 	// Attempt to load initial layout from `state.yml` non-blocking.
 	// LoadState schedules any CSV loads in the background.
 	if err := g.canvas.LoadState("state.yml"); err != nil {
@@ -92,17 +70,17 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	// draw canvas (panels)
 	state := CanvasDrawState{
 		Face:             g.ui.face,
-		ActivePanel:      g.activePanel,
-		SelRow:           g.selRow,
-		SelCol:           g.selCol,
-		Editing:          g.editing,
-		EditBuffer:       g.editBuffer,
-		EditingPanelName: g.editingPanelName,
-		EditPanelIndex:   g.editPanelIndex,
-		EditPanelBuffer:  g.editPanelBuffer,
-		CaretVisible:     g.caretVisible,
-		EditCursor:       g.editCursor,
-		EditPanelCursor:  g.editPanelCursor,
+		ActivePanel:      g.input.activePanel,
+		SelRow:           g.input.selRow,
+		SelCol:           g.input.selCol,
+		Editing:          g.input.editing,
+		EditBuffer:       g.input.editBuffer,
+		EditingPanelName: g.input.editingPanelName,
+		EditPanelIndex:   g.input.editPanelIndex,
+		EditPanelBuffer:  g.input.editPanelBuffer,
+		CaretVisible:     g.input.caretVisible,
+		EditCursor:       g.input.editCursor,
+		EditPanelCursor:  g.input.editPanelCursor,
 	}
 	g.canvas.Draw(screen, state)
 

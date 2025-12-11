@@ -25,12 +25,33 @@ type InputManager struct {
 	resizingPanel int
 	moveOffsetX   int
 	moveOffsetY   int
+
+	// selection (moved from Game)
+	activePanel    int
+	selRow, selCol int
+
+	// editing (moved from Game)
+	editing      bool
+	editBuffer   string
+	editCursor   int
+	blinkCounter int
+	caretVisible bool
+	// panel name editing
+	editingPanelName bool
+	editPanelBuffer  string
+	editPanelCursor  int
+	editPanelIndex   int
 }
 
 func NewInputManager() *InputManager {
 	return &InputManager{
-		movingPanel:   -1,
-		resizingPanel: -1,
+		movingPanel:      -1,
+		resizingPanel:    -1,
+		activePanel:      0,
+		selRow:           0,
+		selCol:           0,
+		editingPanelName: false,
+		editPanelIndex:   -1,
 	}
 }
 
@@ -94,7 +115,7 @@ func (im *InputManager) HandleContextMenuInput(g *Game) {
 		// Determine which panel to load into: context menu target or active panel
 		target := g.contextMenu.targetPanel
 		if target < 0 {
-			target = g.activePanel
+			target = im.activePanel
 		}
 		// ask for a CSV file
 		path, err := dialog.File().Filter("CSV", "csv").Title("Load Panel CSV").Load()
@@ -151,7 +172,7 @@ func (im *InputManager) HandleContextMenuInput(g *Game) {
 		// Determine the panel to save: context menu target or active panel
 		target := g.contextMenu.targetPanel
 		if target < 0 {
-			target = g.activePanel
+			target = im.activePanel
 		}
 		if target < 0 || target >= len(g.canvas.panels) {
 			if g.ui != nil {
@@ -186,7 +207,7 @@ func (im *InputManager) HandleContextMenuInput(g *Game) {
 		// Determine the panel to delete: context menu target or active panel
 		target := g.contextMenu.targetPanel
 		if target < 0 {
-			target = g.activePanel
+			target = im.activePanel
 		}
 		if target < 0 || target >= len(g.canvas.panels) {
 			if g.ui != nil {
@@ -199,13 +220,13 @@ func (im *InputManager) HandleContextMenuInput(g *Game) {
 		g.canvas.RemovePanelAt(target)
 		// adjust active panel selection
 		if len(g.canvas.panels) == 0 {
-			g.activePanel = 0
-			g.selRow = 0
-			g.selCol = 0
-		} else if g.activePanel >= len(g.canvas.panels) {
-			g.activePanel = len(g.canvas.panels) - 1
-			g.selRow = 0
-			g.selCol = 0
+			im.activePanel = 0
+			im.selRow = 0
+			im.selCol = 0
+		} else if im.activePanel >= len(g.canvas.panels) {
+			im.activePanel = len(g.canvas.panels) - 1
+			im.selRow = 0
+			im.selCol = 0
 		}
 		if g.ui != nil {
 			if name == "" {
@@ -219,32 +240,32 @@ func (im *InputManager) HandleContextMenuInput(g *Game) {
 
 func (im *InputManager) HandleSelectionNavigation(g *Game) {
 	// selection navigation (only when not editing)
-	if g.editing {
+	if im.editing {
 		return
 	}
 	// guard: make sure active panel exists
-	if g.activePanel < 0 || g.activePanel >= len(g.canvas.panels) {
+	if im.activePanel < 0 || im.activePanel >= len(g.canvas.panels) {
 		return
 	}
-	p := g.canvas.panels[g.activePanel]
+	p := g.canvas.panels[im.activePanel]
 	if inpututil.IsKeyJustPressed(ebiten.KeyArrowUp) {
-		if g.selRow > 0 {
-			g.selRow--
+		if im.selRow > 0 {
+			im.selRow--
 		}
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyArrowDown) {
-		if g.selRow < p.Rows-1 {
-			g.selRow++
+		if im.selRow < p.Rows-1 {
+			im.selRow++
 		}
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyArrowLeft) {
-		if g.selCol > 0 {
-			g.selCol--
+		if im.selCol > 0 {
+			im.selCol--
 		}
 	}
 	if inpututil.IsKeyJustPressed(ebiten.KeyArrowRight) {
-		if g.selCol < p.Cols-1 {
-			g.selCol++
+		if im.selCol < p.Cols-1 {
+			im.selCol++
 		}
 	}
 }
@@ -254,9 +275,9 @@ func (im *InputManager) HandlePanelSwitching(g *Game) {
 		if len(g.canvas.panels) == 0 {
 			return
 		}
-		g.activePanel = (g.activePanel + 1) % len(g.canvas.panels)
-		g.selRow = 0
-		g.selCol = 0
+		im.activePanel = (im.activePanel + 1) % len(g.canvas.panels)
+		im.selRow = 0
+		im.selCol = 0
 	}
 }
 
@@ -322,7 +343,7 @@ func (im *InputManager) HandleCanvasInteraction(g *Game) {
 					continue
 				}
 				picked = i
-				g.activePanel = i
+				im.activePanel = i
 				// compute selected cell
 				cx := mx - baseX
 				cy := my - baseY
@@ -335,8 +356,8 @@ func (im *InputManager) HandleCanvasInteraction(g *Game) {
 						g.ui.OnCellClick(g, i, row, col)
 					}
 					// NOW update the selection to the new cell
-					g.selRow = row
-					g.selCol = col
+					im.selRow = row
+					im.selCol = col
 				}
 				break
 			}
