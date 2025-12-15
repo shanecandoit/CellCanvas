@@ -5,8 +5,10 @@ import (
 	"path/filepath"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/sqweek/dialog"
+	"golang.org/x/image/font"
 )
 
 // InputManager handles input detection and updates game state accordingly.
@@ -290,6 +292,42 @@ func (im *InputManager) GetLockedPanels() map[int]bool {
 		locked[im.resizingPanel] = true
 	}
 	return locked
+}
+
+func (im *InputManager) Draw(screen *ebiten.Image, face font.Face, g *Game) {
+	// Draw selection overlay and editing text
+	// This replaces the CanvasDrawState approach with direct drawing
+	// We'll need to access the canvas to get panel information
+	// For now, we'll keep this simple and just draw the selection
+	// The actual implementation will need to be moved from Canvas renderer
+
+	// This is a temporary implementation - we need to move the drawing logic
+	// from the renderer to here, but for now we'll create a minimal version
+	// that draws the selection overlay
+
+	if im.activePanel >= 0 && im.activePanel < len(g.canvas.panels) {
+		p := g.canvas.panels[im.activePanel]
+		b := p.GetBounds(g.canvas.camX, g.canvas.camY)
+
+		// Draw selection overlay
+		baseX := float64(b.ContentX)
+		baseY := float64(b.ContentY)
+		sx := baseX + float64(im.selCol*p.CellW)
+		sy := baseY + float64(im.selRow*p.CellH)
+		cellW := float64(p.CellW - 1)
+		cellH := float64(p.CellH - 1)
+		borderWidth := 2.0
+
+		// Draw blue border instead of filled rectangle
+		// Top border
+		ebitenutil.DrawRect(screen, sx, sy, cellW, borderWidth, ColorSelection)
+		// Bottom border
+		ebitenutil.DrawRect(screen, sx, sy+cellH-borderWidth, cellW, borderWidth, ColorSelection)
+		// Left border
+		ebitenutil.DrawRect(screen, sx, sy, borderWidth, cellH, ColorSelection)
+		// Right border
+		ebitenutil.DrawRect(screen, sx+cellW-borderWidth, sy, borderWidth, cellH, ColorSelection)
+	}
 }
 
 func (im *InputManager) HandleCanvasInteraction(g *Game) {

@@ -190,11 +190,11 @@ func max(a, b int) int {
 	return b
 }
 
-// Draw renders the panels; selection overlay is drawn here but editing text is handled by UI
-func (c *Canvas) Draw(screen *ebiten.Image, state CanvasDrawState) {
+// Draw renders the panels; selection overlay and editing are now handled by InputManager
+func (c *Canvas) Draw(screen *ebiten.Image, im *InputManager) {
 	// Delegate drawing to the Renderer
 	renderer := NewRenderer()
-	renderer.DrawCanvas(screen, c, state)
+	renderer.DrawCanvas(screen, c, im)
 }
 
 func NewPanel(x, y, cols, rows int) Panel {

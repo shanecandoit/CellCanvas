@@ -19,26 +19,26 @@ func NewRenderer() *Renderer {
 }
 
 // DrawCanvas renders the entire canvas including all panels.
-func (r *Renderer) DrawCanvas(screen *ebiten.Image, c *Canvas, state CanvasDrawState) {
+func (r *Renderer) DrawCanvas(screen *ebiten.Image, c *Canvas, im *InputManager) {
 	for pi := range c.panels {
-		r.drawPanel(screen, c, &c.panels[pi], pi, state)
+		r.drawPanel(screen, c, &c.panels[pi], pi, im)
 	}
 }
 
-func (r *Renderer) drawPanel(screen *ebiten.Image, c *Canvas, p *Panel, pi int, state CanvasDrawState) {
+func (r *Renderer) drawPanel(screen *ebiten.Image, c *Canvas, p *Panel, pi int, im *InputManager) {
 	b := p.GetBounds(c.camX, c.camY)
 
 	r.drawPanelBackground(screen, b)
-	r.drawPanelHeader(screen, p, b, pi, state)
+	r.drawPanelHeader(screen, p, b, pi)
 	r.drawPanelBorder(screen, b)
 
 	if !p.Loaded {
-		r.drawPanelLoading(screen, b, state)
+		r.drawPanelLoading(screen, b)
 	} else {
-		r.drawPanelContent(screen, p, b, pi, state)
+		r.drawPanelContent(screen, p, b, pi, im)
 	}
 
-	r.drawPanelSelection(screen, p, b, pi, state)
+	// Selection and editing are now handled by InputManager.Draw()
 	r.drawResizeHandle(screen, p, b)
 }
 
@@ -46,12 +46,12 @@ func (r *Renderer) drawPanelBackground(screen *ebiten.Image, b PanelBounds) {
 	ebitenutil.DrawRect(screen, float64(b.TotalX), float64(b.TotalY), float64(b.TotalW), float64(b.TotalH), ColorPanelBg)
 }
 
-func (r *Renderer) drawPanelHeader(screen *ebiten.Image, p *Panel, b PanelBounds, pi int, state CanvasDrawState) {
+func (r *Renderer) drawPanelHeader(screen *ebiten.Image, p *Panel, b PanelBounds, pi int) {
 	baseX := float64(b.ContentX)
 	baseY := float64(b.ContentY)
 
 	// panel title
-	drawTextAt(screen, state.Face, fmt.Sprintf("Panel %d", pi+1), int(baseX)+PanelInnerPadding, int(baseY-PanelHeaderHeight+2), ColorText)
+	drawTextAt(screen, nil, fmt.Sprintf("Panel %d", pi+1), int(baseX)+PanelInnerPadding, int(baseY-PanelHeaderHeight+2), ColorText)
 
 	// draw a blank clickable name button centered in the header
 	btnX := baseX + float64(b.ContentW)/2 - float64(PanelNameButtonW)/2
@@ -60,56 +60,14 @@ func (r *Renderer) drawPanelHeader(screen *ebiten.Image, p *Panel, b PanelBounds
 
 	// draw panel's alias/name inside the header button
 	nameToShow := p.Name
-	if state.EditingPanelName && state.EditPanelIndex == pi {
-		nameToShow = state.EditPanelBuffer
-	}
 
 	// Draw text if present
 	tx := btnX + float64(PanelNameButtonW)/2 // default center position
-	if nameToShow != "" && state.Face != nil {
-		bnd, _ := font.BoundString(state.Face, nameToShow)
-		textW := int((bnd.Max.X - bnd.Min.X) >> 6)
-		tx = btnX + float64(PanelNameButtonW-textW)/2
-		drawTextAt(screen, state.Face, nameToShow, int(tx), int(btnY), ColorText)
+	if nameToShow != "" {
+		drawTextAt(screen, nil, nameToShow, int(tx), int(btnY), ColorText)
 	}
 
-	// draw blinking caret when editing (even if name is empty)
-	if state.EditingPanelName && state.EditPanelIndex == pi && state.CaretVisible {
-		rs := []rune(state.EditPanelBuffer)
-		if state.EditPanelCursor < 0 {
-			state.EditPanelCursor = 0
-		}
-		if state.EditPanelCursor > len(rs) {
-			state.EditPanelCursor = len(rs)
-		}
-
-		// Calculate caret position
-		var caretX float64
-		if len(rs) == 0 {
-			// Empty name: center the caret
-			caretX = btnX + float64(PanelNameButtonW)/2
-		} else {
-			// Calculate position based on text before cursor
-			pre := string(rs[:state.EditPanelCursor])
-			if state.Face != nil {
-				bnd, _ := font.BoundString(state.Face, nameToShow)
-				textW := int((bnd.Max.X - bnd.Min.X) >> 6)
-				tx = btnX + float64(PanelNameButtonW-textW)/2
-
-				pb, _ := font.BoundString(state.Face, pre)
-				preW := int((pb.Max.X - pb.Min.X) >> 6)
-				caretX = tx + float64(preW)
-			} else {
-				caretX = btnX + float64(PanelNameButtonW)/2
-			}
-		}
-
-		ascent := state.Face.Metrics().Ascent.Round()
-		descent := state.Face.Metrics().Descent.Round()
-		caretH := ascent + descent
-		caretY := int(btnY) + (PanelNameButtonH-caretH)/2
-		ebitenutil.DrawRect(screen, float64(caretX), float64(caretY), 2, float64(caretH), ColorText)
-	}
+	// Panel name editing is now handled by InputManager.Draw()
 }
 
 func (r *Renderer) drawPanelBorder(screen *ebiten.Image, b PanelBounds) {
@@ -119,12 +77,12 @@ func (r *Renderer) drawPanelBorder(screen *ebiten.Image, b PanelBounds) {
 	ebitenutil.DrawRect(screen, float64(b.TotalX), float64(b.TotalY+b.TotalH-PanelBorderWidth), float64(b.TotalW), float64(PanelBorderWidth), ColorPanelBorder)
 }
 
-func (r *Renderer) drawPanelLoading(screen *ebiten.Image, b PanelBounds, state CanvasDrawState) {
+func (r *Renderer) drawPanelLoading(screen *ebiten.Image, b PanelBounds) {
 	ebitenutil.DrawRect(screen, float64(b.ContentX), float64(b.ContentY), float64(b.ContentW), float64(b.ContentH), ColorPanelLoading)
-	drawTextAt(screen, state.Face, "Loading...", b.ContentX+PanelInnerPadding, b.ContentY+PanelInnerPadding, ColorText)
+	drawTextAt(screen, nil, "Loading...", b.ContentX+PanelInnerPadding, b.ContentY+PanelInnerPadding, ColorText)
 }
 
-func (r *Renderer) drawPanelContent(screen *ebiten.Image, p *Panel, b PanelBounds, pi int, state CanvasDrawState) {
+func (r *Renderer) drawPanelContent(screen *ebiten.Image, p *Panel, b PanelBounds, pi int, im *InputManager) {
 	baseX := float64(b.ContentX)
 	baseY := float64(b.ContentY)
 	for row := 0; row < p.Rows; row++ {
@@ -133,16 +91,20 @@ func (r *Renderer) drawPanelContent(screen *ebiten.Image, p *Panel, b PanelBound
 			y := baseY + float64(row*p.CellH)
 			// cell bg
 			ebitenutil.DrawRect(screen, x, y, float64(p.CellW-1), float64(p.CellH-1), ColorCellBg)
+
+			// If this cell is being edited, skip drawing its static content so we don't get double-draw
+			if im.editing && !im.editingPanelName && im.activePanel == pi && im.selRow == row && im.selCol == col {
+				continue
+			}
+
 			// cell text
 			key := CellRef(col, row)
 			txt := ""
 			if v, ok := p.Cells[key]; ok {
 				txt = v
 			}
-			if state.Editing && state.ActivePanel == pi && row == state.SelRow && col == state.SelCol {
-				txt = state.EditBuffer
-			}
-			drawTextAt(screen, state.Face, txt, int(x)+PanelInnerPadding, int(y)+PanelInnerPadding, ColorText)
+			// Editing text is now handled by InputManager.Draw()
+			drawTextAt(screen, nil, txt, int(x)+PanelInnerPadding, int(y)+PanelInnerPadding, ColorText)
 		}
 	}
 }

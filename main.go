@@ -68,24 +68,16 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	screen.Fill(ColorBackground)
 
 	// draw canvas (panels)
-	state := CanvasDrawState{
-		Face:             g.ui.face,
-		ActivePanel:      g.input.activePanel,
-		SelRow:           g.input.selRow,
-		SelCol:           g.input.selCol,
-		Editing:          g.input.editing,
-		EditBuffer:       g.input.editBuffer,
-		EditingPanelName: g.input.editingPanelName,
-		EditPanelIndex:   g.input.editPanelIndex,
-		EditPanelBuffer:  g.input.editPanelBuffer,
-		CaretVisible:     g.input.caretVisible,
-		EditCursor:       g.input.editCursor,
-		EditPanelCursor:  g.input.editPanelCursor,
-	}
-	g.canvas.Draw(screen, state)
+	g.canvas.Draw(screen, g.input)
+
+	// draw input-related elements (selection, editing)
+	g.input.Draw(screen, g.ui.face, g)
 
 	// draw UI (HUD, editing overlays)
 	g.ui.Draw(screen, g)
+
+	// draw context menu
+	g.contextMenu.Draw(screen, g.ui.face)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
